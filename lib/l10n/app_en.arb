@@ -1,0 +1,162 @@
+{
+  "@@locale": "en",
+
+  "appTitle": "Mergelings",
+  "tagline": "Merge, collect, and fill five magical meadows.",
+
+  "navMeadow": "Meadow",
+  "navCollection": "Collection",
+  "navShop": "Shop",
+  "navMeadows": "Meadows",
+  "navSettings": "Settings",
+
+  "hearts": "Hearts",
+  "gems": "Gems",
+  "perMinute": "{amount}/min",
+  "@perMinute": { "placeholders": { "amount": { "type": "String" } } },
+
+  "basket": "Basket",
+
+  "hintDragToMerge": "Drag two matching friends together to merge them!",
+  "hintTapBasket": "The basket fills by itself — tap it to hurry a new friend along.",
+  "hintBoardFull": "Your meadow is full — merge or sell someone first.",
+
+  "newDiscovery": "New friend discovered!",
+  "discoveryReward": "+{gems} gems",
+  "@discoveryReward": { "placeholders": { "gems": { "type": "int" } } },
+  "tierLabel": "Tier {tier}",
+  "@tierLabel": { "placeholders": { "tier": { "type": "int" } } },
+
+  "boardTileLabel": "{name}, tier {tier}",
+  "@boardTileLabel": {
+    "description": "Screen reader label for a creature standing on the board.",
+    "placeholders": { "name": { "type": "String" }, "tier": { "type": "int" } }
+  },
+  "boardMysteryLabel": "Mystery basket, not yet opened",
+  "@boardMysteryLabel": {
+    "description": "Screen reader label for an unopened mystery basket on the board."
+  },
+
+  "sell": "Sell",
+  "sellFor": "Sell for {amount}",
+  "@sellFor": { "placeholders": { "amount": { "type": "String" } } },
+  "sellTitle": "Send this friend home?",
+  "sellBody": "You will receive {amount} hearts.",
+  "@sellBody": { "placeholders": { "amount": { "type": "String" } } },
+
+  "shopTitle": "Shop",
+  "shopFriends": "Friends",
+  "shopBoosts": "Boosts",
+  "buy": "Buy",
+  "notEnoughHearts": "Not enough hearts.",
+  "notEnoughGems": "Not enough gems.",
+  "expandMeadow": "Expand meadow",
+  "expandMeadowBody": "Unlock another row of space.",
+  "meadowFullyExpanded": "Fully expanded",
+
+  "shopAccessories": "Accessories",
+  "accessoryTitle": "Accessory",
+  "accessoryNone": "None",
+  "accessoryOwned": "Owned",
+  "accessoryOwnedBody": "Put it on any friend from their collection card.",
+  "accessoryLocked": "Discover {count} friends to unlock.",
+  "@accessoryLocked": { "placeholders": { "count": { "type": "int" } } },
+  "accessoryBought": "{name} added to your wardrobe!",
+  "@accessoryBought": { "placeholders": { "name": { "type": "String" } } },
+  "accessoryEmptyHint": "Buy accessories in the shop to dress your friends up.",
+  "accessoryFlowerCrown": "Flower crown",
+  "accessoryBowTie": "Bow tie",
+  "accessoryPartyHat": "Party hat",
+  "accessoryScarf": "Cosy scarf",
+  "accessoryTopHat": "Top hat",
+  "accessorySunglasses": "Sunglasses",
+  "accessoryCape": "Hero cape",
+  "accessoryHeadphones": "Headphones",
+  "accessoryCrown": "Golden crown",
+
+  "boostTitle": "Double hearts",
+  "boostBody": "Double all heart income for {minutes} minutes.",
+  "@boostBody": { "placeholders": { "minutes": { "type": "int" } } },
+  "boostActive": "Double hearts — {time} left",
+  "@boostActive": { "placeholders": { "time": { "type": "String" } } },
+
+  "basketBoostTitle": "Speedy basket",
+  "basketBoostBody": "The basket fills {times}× faster for {minutes} minutes.",
+  "@basketBoostBody": {
+    "placeholders": { "times": { "type": "int" }, "minutes": { "type": "int" } }
+  },
+  "basketBoostActive": "Speedy basket — {time} left",
+  "@basketBoostActive": { "placeholders": { "time": { "type": "String" } } },
+
+  "giftTitle": "Free friend",
+  "giftBody": "Watch a short video for a free friend.",
+
+  "mysteryTitle": "A mystery basket!",
+  "mysteryBody": "Something is rustling inside. Choose how to open it.",
+  "mysteryOpenNow": "Open now",
+  "mysteryLater": "Leave it for now",
+  "mysteryTierRange": "A friend from tier {min}–{max}",
+  "@mysteryTierRange": {
+    "placeholders": { "min": { "type": "int" }, "max": { "type": "int" } }
+  },
+  "mysteryGranted": "{name} hopped out of the basket!",
+  "@mysteryGranted": { "placeholders": { "name": { "type": "String" } } },
+
+  "watchAd": "Watch video",
+  "adNotReady": "No video available right now. Try again shortly.",
+  "adRewardGranted": "Reward collected!",
+
+  "welcomeBackTitle": "Welcome back!",
+  "welcomeBackBody": "Your meadow earned {amount} hearts while you were away.",
+  "@welcomeBackBody": { "placeholders": { "amount": { "type": "String" } } },
+  "collect": "Collect",
+  "collectDouble": "Collect double",
+
+  "collectionTitle": "Collection",
+  "collectionProgress": "{found} of {total} discovered",
+  "@collectionProgress": {
+    "placeholders": { "found": { "type": "int" }, "total": { "type": "int" } }
+  },
+  "undiscovered": "Not yet discovered",
+
+  "meadowsTitle": "Meadows",
+  "meadowLocked": "Discover tier {tier} in {meadow} to unlock.",
+  "@meadowLocked": {
+    "placeholders": { "tier": { "type": "int" }, "meadow": { "type": "String" } }
+  },
+  "meadowUnlocked": "Unlocked!",
+  "enterMeadow": "Enter",
+
+  "worldDay": "Day Meadow",
+  "worldNight": "Night Meadow",
+  "worldWater": "Sea Meadow",
+  "worldMythical": "Myth Meadow",
+  "worldPrehistoric": "Dino Meadow",
+
+  "worldDayDesc": "Sun-warmed grass and woodland friends.",
+  "worldNightDesc": "Moonlit critters and starry wanderers.",
+  "worldWaterDesc": "Reef shallows down to the deep blue.",
+  "worldMythicalDesc": "Folklore, legend and elder dragons.",
+  "worldPrehistoricDesc": "Fossil giants from a lost world.",
+
+  "settingsTitle": "Settings",
+  "settingsLanguage": "Language",
+  "settingsSound": "Sound effects",
+  "settingsMusic": "Music",
+  "settingsHaptics": "Vibration",
+  "settingsPrivacy": "Privacy policy",
+  "settingsAdPrivacy": "Ad privacy settings",
+  "settingsTerms": "Terms of use",
+  "settingsRate": "Rate Mergelings",
+  "settingsReset": "Reset progress",
+  "settingsResetBody": "This permanently deletes every meadow, friend and heart. This cannot be undone.",
+  "settingsVersion": "Version {version}",
+  "@settingsVersion": { "placeholders": { "version": { "type": "String" } } },
+  "settingsSystemLanguage": "System default",
+
+  "ok": "OK",
+  "cancel": "Cancel",
+  "close": "Close",
+  "reset": "Reset",
+  "loading": "Loading…"
+}
