@@ -19,8 +19,9 @@ flutter pub get
 flutter run
 ```
 
-Debug builds use Google's public AdMob **test** units, so no real ad inventory
-is touched during development. See [Shipping](#shipping) before releasing.
+Debug and profile builds use Google's public AdMob **test** units, so no real
+ad inventory is touched during development. Release builds use the live units
+automatically. See [Shipping](#shipping) before releasing.
 
 ---
 
@@ -107,7 +108,7 @@ lib/
     game_state.dart          Save file: boards, tiles, currencies, settings
 
   services/
-    ad_ids.dart              AdMob unit ids (test by default)
+    ad_ids.dart              AdMob unit ids (live in release, test otherwise)
     ads_service.dart         Consent (UMP), ATT, banner/interstitial/rewarded
     audio_service.dart       Pooled SFX playback
     creature_names.dart      Localized creature names from JSON assets
@@ -285,34 +286,41 @@ them because they are not named `*_test.dart`.
 
 ### Ad units
 
-Real ids are injected at build time so they never sit in source control:
+The live AdMob ids are in the tree — they are public identifiers, not secrets.
+Release builds pick them up with no extra flags:
 
 ```bash
-flutter build appbundle --release \
-  --dart-define=ADMOB_BANNER_ANDROID=ca-app-pub-XXXXX/YYYYY \
-  --dart-define=ADMOB_INTERSTITIAL_ANDROID=ca-app-pub-XXXXX/YYYYY \
-  --dart-define=ADMOB_REWARDED_ANDROID=ca-app-pub-XXXXX/YYYYY
-
-flutter build ipa --release \
-  --dart-define=ADMOB_BANNER_IOS=ca-app-pub-XXXXX/YYYYY \
-  --dart-define=ADMOB_INTERSTITIAL_IOS=ca-app-pub-XXXXX/YYYYY \
-  --dart-define=ADMOB_REWARDED_IOS=ca-app-pub-XXXXX/YYYYY \
-  --dart-define=APP_STORE_ID=1234567890
+flutter build appbundle --release
+flutter build ipa --release --dart-define=APP_STORE_ID=1234567890
 ```
 
-`AdIds.usingTestUnits` reports whether a build is still on test inventory.
+| | Android | iOS |
+|---|---|---|
+| App id | `...~1539772329` (`AndroidManifest.xml`) | `...~9295702361` (`Info.plist`) |
+| Banner | `.../7913608986` | `.../2405347619` |
+| Interstitial | `.../5886211445` | `.../7474625287` |
+| Rewarded | `.../3718429286` | `.../1744515409` |
+
+All under publisher `ca-app-pub-7855071425983459`; full values in
+`lib/services/ad_ids.dart`.
+
+Debug and profile builds serve Google's test units instead — never click a live
+ad on your own build, it risks a policy strike. To point a debug build at a live
+unit anyway, or to swap an id without editing source, `--dart-define` overrides
+both in every build mode:
+
+```bash
+flutter run --dart-define=ADMOB_BANNER_ANDROID=ca-app-pub-XXXXX/YYYYY
+```
+
+Keys: `ADMOB_{BANNER,INTERSTITIAL,REWARDED}_{ANDROID,IOS}`.
+`AdIds.usingTestUnits` reports whether a build is on test inventory.
 
 ### Pre-launch checklist
 
 The app runs correctly today, but these are placeholders that **must** be
 replaced before a public release:
 
-- [ ] **AdMob app id — Android.** `com.google.android.gms.ads.APPLICATION_ID`
-      in `android/app/src/main/AndroidManifest.xml`. Currently Google's test id.
-      A wrong value crashes the SDK at launch.
-- [ ] **AdMob app id — iOS.** `GADApplicationIdentifier` in
-      `ios/Runner/Info.plist`. Currently Google's test id.
-- [ ] **Ad unit ids** passed via `--dart-define` as above.
 - [ ] **Privacy policy and terms pages** must actually exist at the URLs in
       `lib/core/app_config.dart`. Both stores reject without a reachable
       privacy policy, and AdMob requires one.

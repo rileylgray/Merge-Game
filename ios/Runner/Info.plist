@@ -41,16 +41,22 @@
 		<string>UIInterfaceOrientationPortrait</string>
 		<string>UIInterfaceOrientationPortraitUpsideDown</string>
 	</array>
+	<!-- iPad must declare all four orientations or App Store validation rejects
+	     the bundle (error 90474, iPad multitasking). The game still runs
+	     portrait-only via SystemChrome.setPreferredOrientations in main.dart. -->
 	<key>UISupportedInterfaceOrientations~ipad</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
 		<string>UIInterfaceOrientationPortraitUpsideDown</string>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
 
-	<!-- AdMob app id. This is Google's public *test* id; replace it with the
-	     real one from the AdMob console before shipping. -->
+	<!-- AdMob app id for the live iOS app. Must match the AdMob console entry —
+	     a mismatched id crashes the SDK on start. Ad *unit* ids live in
+	     lib/services/ad_ids.dart. -->
 	<key>GADApplicationIdentifier</key>
-	<string>ca-app-pub-3940256099942544~1458002511</string>
+	<string>ca-app-pub-7855071425983459~9295702361</string>
 
 	<!-- Shown in the App Tracking Transparency prompt. -->
 	<key>NSUserTrackingUsageDescription</key>
