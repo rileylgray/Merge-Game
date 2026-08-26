@@ -91,7 +91,7 @@ const List<CreatureSpec> waterCreatures = <CreatureSpec>[
     body: BodyShape.tall,
     crest: CrestType.crest,
     tail: TailType.curl,
-    snout: SnoutType.beakLong,
+    snout: SnoutType.seahorse,
     pattern: PatternType.ringed,
     eyes: EyeStyle.round,
     limbs: LimbType.none,

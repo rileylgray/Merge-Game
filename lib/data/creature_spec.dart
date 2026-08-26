@@ -123,6 +123,7 @@ enum SnoutType {
   wideMuzzle,
   beakSmall,
   beakLong,
+  seahorse,
   trunk,
   duckBill,
   longJaw,
@@ -169,7 +170,17 @@ enum PatternType {
   rosettes,
 }
 
-enum EyeStyle { round, sparkle, sleepy, wide, closedHappy, big, glow, side, mono }
+enum EyeStyle {
+  round,
+  sparkle,
+  sleepy,
+  wide,
+  closedHappy,
+  big,
+  glow,
+  side,
+  mono,
+}
 
 enum LimbType {
   none,
