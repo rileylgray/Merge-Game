@@ -360,8 +360,8 @@ class _AccessoryOffer extends StatelessWidget {
                 const _OwnedBadge()
               else if (unlocked)
                 _PriceButton(
-                  cost: item.cost,
-                  affordable: game.canAfford(item.cost),
+                  cost: game.accessoryCost(item),
+                  affordable: game.canAfford(game.accessoryCost(item)),
                   onPressed: () {
                     if (game.buyAccessory(item)) {
                       showToast(

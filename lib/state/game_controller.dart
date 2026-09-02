@@ -419,6 +419,11 @@ class GameController extends ChangeNotifier {
   bool accessoryUnlocked(Accessory item) =>
       discoveredCount() >= item.unlockDiscoveries;
 
+  /// What [item] costs right now. Rises with progress, so ask again rather
+  /// than holding on to the answer.
+  double accessoryCost(Accessory item) =>
+      item.costAt(_state.bestTierAnywhere);
+
   /// The wardrobe in shop order, with the still-locked bands at the end.
   List<Accessory> get accessoryCatalogue => <Accessory>[
         ...kAccessories.where(accessoryUnlocked),
@@ -432,13 +437,14 @@ class GameController extends ChangeNotifier {
   /// Buying is permanent: the item joins the wardrobe and any number of
   /// friends can wear it from then on.
   bool buyAccessory(Accessory item) {
+    final double price = accessoryCost(item);
     if (ownsAccessory(item.type) ||
         !accessoryUnlocked(item) ||
-        _state.hearts < item.cost) {
+        _state.hearts < price) {
       _audio.play(Sfx.error);
       return false;
     }
-    _state.hearts -= item.cost;
+    _state.hearts -= price;
     _state.ownedAccessories.add(item.id);
     _audio.play(Sfx.coin);
     _haptic(HapticFeedbackType.medium);
@@ -467,7 +473,8 @@ class GameController extends ChangeNotifier {
 
   bool get canExpand => board.rows < Balance.maxRows;
 
-  double get expandCost => Balance.rowUnlockCost(board.rows + 1);
+  double get expandCost =>
+      Balance.rowUnlockCost(board.rows + 1, highestTier(world.id));
 
   bool expandMeadow() {
     if (!canExpand || _state.hearts < expandCost) {

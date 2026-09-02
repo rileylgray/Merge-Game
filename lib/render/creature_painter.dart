@@ -55,10 +55,18 @@ class CreaturePainter extends CustomPainter {
   /// Margin left around the art so wings, tails and horns stay inside the tile.
   static const double kSafe = 0.93;
 
+  /// The inset this particular creature needs. A stag's antlers and a giraffe's
+  /// ears have to come out of the same box as a snail's shell, so anything that
+  /// grows above the skull buys its room by drawing the whole animal a little
+  /// smaller. Cropped antlers look like a bug; a stag 6% shorter than a lion
+  /// does not.
+  double get _safe => kSafe - _clearanceOf(spec) * .85;
+
   /// How far [bob] of 1 lifts the body, as a fraction of the paint box's short
   /// side. Public so a caller that would rather translate the body itself lands
   /// it in exactly the same place.
-  static const double bobTravel = 0.022 * kSafe;
+  static double bobTravelFor(CreatureSpec spec) =>
+      0.022 * (kSafe - _clearanceOf(spec) * .85);
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -66,8 +74,9 @@ class CreaturePainter extends CustomPainter {
     canvas.save();
     canvas.translate((size.width - s) / 2, (size.height - s) / 2);
 
-    canvas.translate(s * (1 - kSafe) / 2, s * (1 - kSafe) / 2);
-    canvas.scale(kSafe);
+    final double safe = _safe;
+    canvas.translate(s * (1 - safe) / 2, s * (1 - safe) / 2);
+    canvas.scale(safe);
 
     final _Anatomy a = _anatomy(spec, s);
 
@@ -238,7 +247,9 @@ class CreaturePainter extends CustomPainter {
   /// How far above the skull a hat has to sit to clear what is already up
   /// there. Antlers still poke through a top hat, which is the joke; a hat
   /// planted *inside* the antlers just looks like a mistake.
-  double get _hatClearance {
+  double get _hatClearance => _clearanceOf(spec);
+
+  static double _clearanceOf(CreatureSpec spec) {
     const Set<CrestType> tall = <CrestType>{
       CrestType.antlers,
       CrestType.unicorn,
@@ -259,6 +270,9 @@ class CreaturePainter extends CustomPainter {
       EarType.antenna,
       EarType.horn,
       EarType.feather,
+      // Short, but they stand straight up, and on a tall body plan that is
+      // enough to put them over the edge — the giraffe lost hers.
+      EarType.pointed,
     };
     double lift = 0;
     if (tall.contains(spec.crest)) lift += .055;
@@ -308,7 +322,7 @@ class CreaturePainter extends CustomPainter {
           botRound: 1.14,
           waist: .66,
           headCy: .285,
-          headR: .215,
+          headR: .232,
           headW: 1.06,
           headH: .98,
         );
@@ -321,7 +335,7 @@ class CreaturePainter extends CustomPainter {
           botRound: 1.04,
           waist: .54,
           headCy: .245,
-          headR: .205,
+          headR: .228,
           headW: 1.05,
           headH: 1.0,
         );
@@ -374,7 +388,7 @@ class CreaturePainter extends CustomPainter {
           botRound: 1.12,
           waist: .60,
           headCy: .285,
-          headR: .215,
+          headR: .233,
           headW: 1.04,
           headH: 1.0,
         );
@@ -387,7 +401,7 @@ class CreaturePainter extends CustomPainter {
           botRound: 1.02,
           waist: .50,
           headCy: .365,
-          headR: .195,
+          headR: .215,
           headW: 1.10,
           headH: .95,
         );
@@ -404,7 +418,7 @@ class CreaturePainter extends CustomPainter {
           botRound: .92,
           waist: .50,
           headCy: .665,
-          headR: .195,
+          headR: .214,
           headW: 1.04,
           headH: .98,
         );
@@ -418,7 +432,7 @@ class CreaturePainter extends CustomPainter {
           botRound: 1.05,
           waist: .50,
           headCy: .565,
-          headR: .215,
+          headR: .230,
           headW: 1.0,
           headH: 1.0,
           headCx: .10,
@@ -439,7 +453,7 @@ class CreaturePainter extends CustomPainter {
           botRound: 1.02,
           waist: .50,
           headCy: .475,
-          headR: .205,
+          headR: .224,
           headW: 1.02,
           headH: 1.0,
           headCx: .16,
@@ -509,7 +523,14 @@ class CreaturePainter extends CustomPainter {
     // The head grows more slowly than the body under widthScale, so wide
     // creatures get a stout body rather than a balloon for a skull.
     final double headR = p.headR * s * math.pow(spec.widthScale, .55);
-    final Offset headC = Offset(bodyCx + p.headCx * s + lean, sy(p.headCy));
+    // heightScale above 1 lifts the whole animal, and the head is what runs
+    // out of tile first: at 1.04 a giraffe's skull sat flush against the top
+    // edge with its ears cropped off above it. Hold the crown to a line that
+    // leaves something for ears and horns to occupy, whatever a spec asks for.
+    final Offset headC = Offset(
+      bodyCx + p.headCx * s + lean,
+      math.max(sy(p.headCy), headR * p.headH + s * .062),
+    );
     final Path head = Path()
       ..addOval(
         Rect.fromCenter(
@@ -890,10 +911,15 @@ class CreaturePainter extends CustomPainter {
     for (int i = 0; i < n; i++) {
       final double t = (i + .5) / n;
       final double x = b.left + b.width * t;
+      // How far round the barrel this bar sits: 0 down the chest, 1 at the flank.
+      final double m = ((t - .5).abs() * 2).clamp(0.0, 1.0);
       // Bars splay away from the centre line, following the barrel of the body.
       final double lean = (t - .5) * b.width * (bold ? .20 : .34);
-      final double len =
-          b.height * (bold ? 1.20 : .60 + .34 * (1 - (t - .5).abs() * 2));
+      // Long down the flanks and short over the chest, so the rank drapes off
+      // the spine like a coat. Run full length everywhere they instead read as
+      // the vertical bars of a prison jumpsuit — which is what a striped
+      // hadrosaur looked like at tile size.
+      final double len = b.height * (bold ? 1.20 : .34 + .58 * m);
       final double w0 = b.width * (bold ? .11 : .038);
       final double w1 = b.width * (bold ? .10 : .017);
       canvas.drawPath(
@@ -904,7 +930,9 @@ class CreaturePainter extends CustomPainter {
           w0,
           w1,
         ),
-        _fill(_accent.withValues(alpha: bold ? .92 : .85)),
+        _fill(
+          _accent.withValues(alpha: bold ? .92 : .52 + .26 * m),
+        ),
       );
     }
   }
@@ -951,12 +979,25 @@ class CreaturePainter extends CustomPainter {
         break;
 
       case PatternType.belly:
+        // A swimmer is countershaded: pale underside running the length of the
+        // animal, dark over the back. The upright oval every other body plan
+        // wants sits in the middle of a fish's flank instead, which is where
+        // the sharks got their white bib.
         canvas.drawOval(
-          Rect.fromCenter(
-            center: Offset(b.center.dx, b.bottom - b.height * .34),
-            width: b.width * .66,
-            height: b.height * .74,
-          ),
+          spec.body == BodyShape.finned
+              ? Rect.fromCenter(
+                  center: Offset(
+                    b.center.dx + b.width * .06,
+                    b.bottom - b.height * .22,
+                  ),
+                  width: b.width * .92,
+                  height: b.height * .52,
+                )
+              : Rect.fromCenter(
+                  center: Offset(b.center.dx, b.bottom - b.height * .34),
+                  width: b.width * .66,
+                  height: b.height * .74,
+                ),
           _fill(_belly),
         );
 
@@ -1815,24 +1856,44 @@ class CreaturePainter extends CustomPainter {
       case CrestType.sailFin:
         final Rect b = a.bodyBounds;
         final double cxf = b.center.dx;
-        final Path p = Path()
-          ..moveTo(cxf - b.width * .34, b.top + b.height * .22)
-          ..quadraticBezierTo(
-            cxf - b.width * .16,
-            b.top - b.height * .26,
-            cxf + b.width * .02,
-            b.top - b.height * .26,
-          )
-          ..quadraticBezierTo(
-            cxf + b.width * .24,
-            b.top - b.height * .06,
-            cxf + b.width * .34,
-            b.top + b.height * .22,
-          )
-          ..close();
+        // On a swimmer this is a dorsal fin, not a sail: a raked triangle set
+        // over the shoulders and swept toward the tail. The broad rounded dome
+        // a dimetrodon wants reads as a hood pulled up over a dolphin's head.
+        final Path p = spec.body == BodyShape.finned
+            ? (Path()
+              ..moveTo(cxf - b.width * .26, b.top + b.height * .16)
+              ..quadraticBezierTo(
+                cxf - b.width * .04,
+                b.top - b.height * .30,
+                cxf + b.width * .16,
+                b.top - b.height * .34,
+              )
+              ..quadraticBezierTo(
+                cxf + b.width * .04,
+                b.top - b.height * .04,
+                cxf + b.width * .10,
+                b.top + b.height * .18,
+              )
+              ..close())
+            : (Path()
+              ..moveTo(cxf - b.width * .34, b.top + b.height * .22)
+              ..quadraticBezierTo(
+                cxf - b.width * .16,
+                b.top - b.height * .26,
+                cxf + b.width * .02,
+                b.top - b.height * .26,
+              )
+              ..quadraticBezierTo(
+                cxf + b.width * .24,
+                b.top - b.height * .06,
+                cxf + b.width * .34,
+                b.top + b.height * .22,
+              )
+              ..close());
         canvas.drawPath(p, _volume(_shade(_body, -.12), p.getBounds()));
         canvas.drawPath(p, _stroke(_shade(_body, -.28), s * .009));
-        // Membrane ribs.
+        // Membrane ribs — a sail is stretched over spines, a dorsal fin is not.
+        if (spec.body == BodyShape.finned) break;
         for (int i = -1; i <= 1; i++) {
           canvas.drawPath(
             Path()
@@ -2294,46 +2355,49 @@ class CreaturePainter extends CustomPainter {
         final Offset f = a.faceCenter;
         final double r = a.faceRadius;
         final Path back = Path()
-          ..moveTo(f.dx - r * .16, f.dy - r * .16)
+          ..moveTo(f.dx - r * .14, f.dy + r * .06)
           ..quadraticBezierTo(
-            f.dx,
-            f.dy - r * .60,
-            f.dx + r * .10,
-            f.dy - r * .64,
+            f.dx - r * .02,
+            f.dy - r * .16,
+            f.dx + r * .06,
+            f.dy - r * .20,
           )
           ..quadraticBezierTo(
-            f.dx + r * .18,
-            f.dy - r * .30,
-            f.dx + r * .18,
-            f.dy - r * .14,
+            f.dx + r * .14,
+            f.dy - r * .04,
+            f.dx + r * .16,
+            f.dy + r * .08,
           )
           ..close();
         _part(canvas, s, back, _shade(_detail, -.06), width: .007, alpha: .30);
+        // Stops around the eyeline rather than towering a full face-radius
+        // over it. Run to full height it crosses the gap between the eyes and
+        // keeps going, and the rhino reads as a unicorn with a grey coat.
         final Path p = Path()
-          ..moveTo(f.dx - r * .28, f.dy + r * .34)
+          ..moveTo(f.dx - r * .24, f.dy + r * .40)
           ..quadraticBezierTo(
-            f.dx - r * .10,
-            f.dy - r * .58,
-            f.dx + r * .26,
-            f.dy - r * 1.02,
+            f.dx - r * .12,
+            f.dy - r * .04,
+            f.dx + r * .14,
+            f.dy - r * .36,
           )
           ..quadraticBezierTo(
-            f.dx + r * .16,
-            f.dy - r * .34,
-            f.dx + r * .30,
-            f.dy + r * .30,
+            f.dx + r * .12,
+            f.dy + r * .02,
+            f.dx + r * .26,
+            f.dy + r * .36,
           )
           ..close();
         canvas.drawPath(p, _volume(_detail, p.getBounds(), lift: .20));
         canvas.drawPath(p, _stroke(_shade(_detail, -.18), s * .008));
         canvas.drawPath(
           Path()
-            ..moveTo(f.dx - r * .22, f.dy + r * .14)
+            ..moveTo(f.dx - r * .18, f.dy + r * .24)
             ..quadraticBezierTo(
-              f.dx - r * .02,
-              f.dy - r * .40,
-              f.dx + r * .20,
-              f.dy - r * .78,
+              f.dx - r * .04,
+              f.dy - r * .04,
+              f.dx + r * .10,
+              f.dy - r * .26,
             ),
           _stroke(_shade(_detail, .18).withValues(alpha: .55), s * .008),
         );
@@ -2504,23 +2568,26 @@ class CreaturePainter extends CustomPainter {
           b.left + b.width * .16,
           b.center.dy + b.height * .10,
         );
+        // Big enough to balance the head. A fluke scaled to a polite flick
+        // reads as a wedge someone left behind the animal, and it was half of
+        // why the whales and sharks were all silhouette and no shape.
         final Path p = Path()
           ..moveTo(r0.dx + b.width * .16, r0.dy)
           ..quadraticBezierTo(
-            r0.dx - b.width * .14,
-            r0.dy - b.height * .16,
-            r0.dx - b.width * .30,
-            r0.dy - b.height * .32,
+            r0.dx - b.width * .18,
+            r0.dy - b.height * .22,
+            r0.dx - b.width * .40,
+            r0.dy - b.height * .46,
           )
           ..quadraticBezierTo(
-            r0.dx - b.width * .14,
+            r0.dx - b.width * .16,
             r0.dy,
-            r0.dx - b.width * .30,
-            r0.dy + b.height * .30,
+            r0.dx - b.width * .40,
+            r0.dy + b.height * .44,
           )
           ..quadraticBezierTo(
-            r0.dx - b.width * .12,
-            r0.dy + b.height * .16,
+            r0.dx - b.width * .14,
+            r0.dy + b.height * .22,
             r0.dx + b.width * .16,
             r0.dy,
           )
@@ -2530,8 +2597,8 @@ class CreaturePainter extends CustomPainter {
         for (int i = -1; i <= 1; i++) {
           canvas.drawPath(
             Path()
-              ..moveTo(r0.dx + b.width * .02, r0.dy + i * b.height * .04)
-              ..lineTo(r0.dx - b.width * .24, r0.dy + i * b.height * .22),
+              ..moveTo(r0.dx + b.width * .02, r0.dy + i * b.height * .05)
+              ..lineTo(r0.dx - b.width * .30, r0.dy + i * b.height * .30),
             _stroke(_shade(_body, -.28).withValues(alpha: .45), s * .007),
           );
         }
@@ -3127,6 +3194,8 @@ class CreaturePainter extends CustomPainter {
             );
           }
         case LimbType.flippers:
+          // Nothing behind a swimmer: the far-side paddle only reads as a foot.
+          if (spec.body == BodyShape.finned) break;
           for (final int sign in const <int>[-1, 1]) {
             canvas.drawOval(
               Rect.fromCenter(
@@ -3329,29 +3398,39 @@ class CreaturePainter extends CustomPainter {
         }
 
       case LimbType.flippers:
+        // A fish has no business standing on anything. Toed feet planted under
+        // the belly are right for a seal or a turtle hauled out on a rock, and
+        // they were what made every shark, dolphin and whale in the meadow read
+        // as a grey loaf on stubby legs. A swimmer gets pectoral fins on the
+        // flank and nothing underneath.
+        final bool swims = spec.body == BodyShape.finned;
         for (final int sign in const <int>[-1, 1]) {
-          _foot(
-            canvas,
-            s,
-            Offset(
-              b.center.dx + sign * b.width * .29,
-              b.bottom - b.height * .02,
-            ),
-            b.width * .34,
-            b.height * .14,
-            _shade(_body, -.05),
-            toes: 3,
-          );
+          if (!swims) {
+            _foot(
+              canvas,
+              s,
+              Offset(
+                b.center.dx + sign * b.width * .29,
+                b.bottom - b.height * .02,
+              ),
+              b.width * .34,
+              b.height * .14,
+              _shade(_body, -.05),
+              toes: 3,
+            );
+          }
           canvas.save();
           canvas.translate(
-            b.center.dx + sign * b.width * .42,
-            b.center.dy + b.height * .22,
+            b.center.dx + sign * b.width * (swims ? .30 : .42),
+            b.center.dy + b.height * (swims ? .30 : .22),
           );
-          canvas.rotate(sign * .62);
+          // Raked back toward the tail, the way a pectoral fin sits when the
+          // animal is moving forward.
+          canvas.rotate(swims ? -.95 : sign * .62);
           final Rect r = Rect.fromCenter(
             center: Offset.zero,
-            width: b.width * .21,
-            height: b.height * .38,
+            width: b.width * (swims ? .30 : .21),
+            height: b.height * (swims ? .17 : .38),
           );
           canvas.drawOval(r, _volume(_shade(_body, -.07), r));
           canvas.drawOval(
@@ -3568,38 +3647,47 @@ class CreaturePainter extends CustomPainter {
         );
 
       case SnoutType.seahorse:
+        // Rooted at the chin and angled down and out, in the body colour with
+        // only the tip picked out. Drawn in the hard detail colour and stuck
+        // out sideways from the middle of the face — which is where a muzzle
+        // this long has to start — it read as a cigar rather than a snout.
+        final double sy0 = my + r * .12;
         final Path p = Path()
-          ..moveTo(f.dx - r * .12, my - r * .12)
+          ..moveTo(f.dx - r * .16, sy0 - r * .16)
           ..quadraticBezierTo(
-            f.dx + r * .18,
-            my - r * .15,
+            f.dx + r * .16,
+            sy0 - r * .10,
+            f.dx + r * .40,
+            sy0 + r * .14,
+          )
+          ..quadraticBezierTo(
             f.dx + r * .48,
-            my - r * .02,
+            sy0 + r * .24,
+            f.dx + r * .36,
+            sy0 + r * .30,
           )
           ..quadraticBezierTo(
-            f.dx + r * .62,
-            my + r * .06,
-            f.dx + r * .54,
-            my + r * .18,
-          )
-          ..quadraticBezierTo(
-            f.dx + r * .42,
-            my + r * .28,
-            f.dx + r * .18,
-            my + r * .23,
-          )
-          ..quadraticBezierTo(
-            f.dx - r * .02,
-            my + r * .18,
-            f.dx - r * .12,
-            my + r * .12,
+            f.dx + r * .14,
+            sy0 + r * .22,
+            f.dx - r * .16,
+            sy0 + r * .16,
           )
           ..close();
-        canvas.drawPath(p, _volume(_detail, p.getBounds(), lift: .18));
-        canvas.drawLine(
-          Offset(f.dx + r * .43, my + r * .10),
-          Offset(f.dx + r * .57, my + r * .12),
-          _stroke(_shade(_detail, -.34).withValues(alpha: .72), s * .008),
+        canvas.drawPath(
+          p,
+          _volume(_shade(_body, -.06), p.getBounds(), lift: .18),
+        );
+        canvas.drawPath(
+          p,
+          _stroke(_shade(_body, -.30).withValues(alpha: .45), s * .008),
+        );
+        canvas.drawOval(
+          Rect.fromCenter(
+            center: Offset(f.dx + r * .38, sy0 + r * .20),
+            width: r * .14,
+            height: r * .12,
+          ),
+          _fill(_shade(_detail, -.10)),
         );
 
       case SnoutType.beakLong:
@@ -3796,10 +3884,16 @@ class CreaturePainter extends CustomPainter {
         // The muzzle a horse, a zebra or a giraffe carries: a tapered mass
         // hanging below the skull, not a patch drawn on the front of it. It is
         // the single feature that stops a hoofed creature reading as a rabbit.
+        // Kept short and narrow on purpose. Drawn at anything like a real
+        // horse's proportions it runs a full face-radius past the jaw and
+        // takes nine tenths of the width with it, and what comes back is a
+        // skull: the eyes get shoved into the top corners and there is no face
+        // left between them. A stub of a muzzle carries the same "hoofed, not
+        // rabbit" read at a fraction of the size.
         final Rect r0 = Rect.fromCenter(
-          center: Offset(f.dx, my + r * .46),
-          width: r * .74,
-          height: r * 1.24,
+          center: Offset(f.dx, my + r * .22),
+          width: r * .58,
+          height: r * .86,
         );
         canvas.drawOval(
           r0,
@@ -3812,19 +3906,19 @@ class CreaturePainter extends CustomPainter {
             ..isAntiAlias = true,
         );
         final Path p = Path()
-          ..moveTo(f.dx - r * .46, my - r * .28)
+          ..moveTo(f.dx - r * .37, my - r * .32)
           ..quadraticBezierTo(
-            f.dx - r * .40,
-            my + r * .74,
-            f.dx - r * .28,
-            my + r * .94,
+            f.dx - r * .35,
+            my + r * .30,
+            f.dx - r * .23,
+            my + r * .48,
           )
-          ..quadraticBezierTo(f.dx, my + r * 1.16, f.dx + r * .28, my + r * .94)
+          ..quadraticBezierTo(f.dx, my + r * .68, f.dx + r * .23, my + r * .48)
           ..quadraticBezierTo(
-            f.dx + r * .40,
-            my + r * .74,
-            f.dx + r * .46,
-            my - r * .28,
+            f.dx + r * .35,
+            my + r * .30,
+            f.dx + r * .37,
+            my - r * .32,
           )
           ..close();
         canvas.drawPath(
@@ -3838,21 +3932,21 @@ class CreaturePainter extends CustomPainter {
         for (final int sign in const <int>[-1, 1]) {
           canvas.drawOval(
             Rect.fromCenter(
-              center: Offset(f.dx + sign * r * .16, my + r * .56),
-              width: r * .13,
-              height: r * .17,
+              center: Offset(f.dx + sign * r * .13, my + r * .18),
+              width: r * .12,
+              height: r * .15,
             ),
             _fill(_shade(_belly, -.38)),
           );
         }
         canvas.drawPath(
           Path()
-            ..moveTo(f.dx - r * .17, my + r * .82)
+            ..moveTo(f.dx - r * .15, my + r * .40)
             ..quadraticBezierTo(
               f.dx,
-              my + r * .94,
-              f.dx + r * .17,
-              my + r * .82,
+              my + r * .50,
+              f.dx + r * .15,
+              my + r * .40,
             ),
           _stroke(_shade(_belly, -.32).withValues(alpha: .70), s * .010),
         );
@@ -3915,7 +4009,9 @@ class CreaturePainter extends CustomPainter {
     final double r = a.faceRadius;
     final double eyeDx = r * .46 * spec.eyeSpacing;
     final double eyeY = f.dy - r * .06;
-    final double eyeR = r * .215;
+    // Eye size is the single biggest cuteness lever there is — the baby-schema
+    // read comes from the eye filling more of the face than an adult's would.
+    final double eyeR = r * .248;
     final Color ink = _shade(_body, -.55);
 
     void eyePair(void Function(Offset c, int sign) draw) {
@@ -4005,6 +4101,16 @@ class CreaturePainter extends CustomPainter {
       }
     }
 
+    // A dark eye sitting inside a dark patch is a hole in the face — the panda
+    // had two. A pale disc behind it is what makes the patch read as a marking
+    // with an eye in it, and it is how the animal is drawn everywhere else.
+    if (spec.pattern == PatternType.eyePatches) {
+      eyePair(
+        (Offset c, _) =>
+            canvas.drawCircle(c, eyeR * 1.34, _fill(_shade(_belly, .02))),
+      );
+    }
+
     switch (spec.eyes) {
       case EyeStyle.round:
         eyePair((Offset c, _) => glossyEye(c, eyeR));
@@ -4020,7 +4126,9 @@ class CreaturePainter extends CustomPainter {
             eyeR * 1.22,
             _stroke(ink.withValues(alpha: .35), s * .008),
           );
-          glossyEye(Offset(c.dx, c.dy + eyeR * .12), eyeR * .62);
+          // A small pupil adrift in a big white is a stare, not a face. Keep
+          // the iris filling most of the eye.
+          glossyEye(Offset(c.dx, c.dy + eyeR * .12), eyeR * .74);
         });
 
       case EyeStyle.sparkle:
@@ -4062,13 +4170,31 @@ class CreaturePainter extends CustomPainter {
         });
 
       case EyeStyle.glow:
+        // A small bright ring on a dark face is a jack-o'-lantern, not a pet.
+        // Feathering the halo and giving the eye itself some size turns the
+        // same two lights back into something that looks pleased to see you.
+        // An accent pale enough to work as a highlight leaves no eye at all:
+        // the golden stag stared out of two blank cream ovals. Floor how light
+        // the iris is allowed to be so there is always something to look at.
+        final HSLColor ac = HSLColor.fromColor(_accent);
+        final Color iris = ac.lightness > .62
+            ? ac.withLightness(.50).withSaturation(
+                math.max(ac.saturation, .45),
+              ).toColor()
+            : _shade(_accent, .06);
         eyePair((Offset c, _) {
           canvas.drawCircle(
             c,
-            eyeR * 1.75,
-            _fill(_accent.withValues(alpha: .30)),
+            eyeR * 1.55,
+            Paint()
+              ..color = _accent.withValues(alpha: .34)
+              ..maskFilter = ui.MaskFilter.blur(
+                ui.BlurStyle.normal,
+                eyeR * .70,
+              )
+              ..isAntiAlias = true,
           );
-          glossyEye(c, eyeR, irisColor: _accent);
+          glossyEye(c, eyeR * 1.20, irisColor: iris);
         });
 
       case EyeStyle.side:
@@ -4079,7 +4205,7 @@ class CreaturePainter extends CustomPainter {
             eyeR * 1.15,
             _stroke(ink.withValues(alpha: .3), s * .008),
           );
-          glossyEye(Offset(c.dx + sign * eyeR * .34, c.dy), eyeR * .58);
+          glossyEye(Offset(c.dx + sign * eyeR * .30, c.dy), eyeR * .70);
         });
 
       case EyeStyle.mono:

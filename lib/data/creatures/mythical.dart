@@ -335,7 +335,6 @@ const List<CreatureSpec> mythicalCreatures = <CreatureSpec>[
     pattern: PatternType.scales,
     eyes: EyeStyle.glow,
     limbs: LimbType.none,
-    blush: false,
   ),
 
   // 18 — Chimera

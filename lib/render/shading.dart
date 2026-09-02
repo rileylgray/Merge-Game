@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 /// The shading vocabulary every painter in the app shares.
@@ -14,13 +16,20 @@ Color shade(Color c, double amount) {
   final double target = amount > 0 ? 45 : 250;
   final double diff = ((target - hsl.hue + 540) % 360) - 180;
   final double hue = (hsl.hue + diff * amount.abs() * .30 + 360) % 360;
-  return hsl
-      .withHue(hue)
-      .withLightness((hsl.lightness + amount).clamp(0.04, 0.97))
-      .withSaturation(
-        (hsl.saturation + (amount < 0 ? .05 : -.06)).clamp(0.0, 1.0),
-      )
-      .toColor();
+  final double lit = (hsl.lightness + amount).clamp(0.04, 0.97);
+  double sat = (hsl.saturation + (amount < 0 ? .05 : -.06)).clamp(0.0, 1.0);
+
+  // Saturation in HSL is measured against the room a colour has at its *own*
+  // lightness, so a cream body reports a high one while being barely tinted at
+  // all. Carry it straight down a long darkening and that whisper of warmth
+  // opens out into brick red — which is how a white lamb ended up with the
+  // eyes of a lab rat. Cap against the colour's actual chroma instead, with
+  // enough slack that ordinary mid-tone shadows still deepen the way they did.
+  final double chroma = (1 - (2 * hsl.lightness - 1).abs()) * hsl.saturation;
+  final double room = 1 - (2 * lit - 1).abs();
+  if (room > 0.001) sat = math.min(sat, chroma / room * 1.6);
+
+  return hsl.withHue(hue).withLightness(lit).withSaturation(sat).toColor();
 }
 
 Paint fillOf(Color c) => Paint()

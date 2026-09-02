@@ -232,6 +232,20 @@ class GameState {
     return best;
   }
 
+  /// Best tier reached in any meadow. The wardrobe is one wardrobe across the
+  /// whole game, so it is priced against this rather than against whichever
+  /// meadow the player happens to be standing in.
+  int get bestTierAnywhere {
+    int best = 0;
+    for (final String id in discovered) {
+      final int split = id.lastIndexOf('_');
+      if (split <= 0) continue;
+      final int tier = int.tryParse(id.substring(split + 1)) ?? 0;
+      if (tier > best) best = tier;
+    }
+    return best;
+  }
+
   bool isWorldUnlocked(World world) {
     if (world.order == 0) return true;
     final World previous = kWorlds[world.order - 1];

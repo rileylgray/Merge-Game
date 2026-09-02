@@ -167,10 +167,12 @@ const List<CreatureSpec> dayCreatures = <CreatureSpec>[
     worldId: 'day',
     tier: 9,
     palette: CreaturePalette(
-      body: Color(0xFFAE8F76),
-      belly: Color(0xFFF4DCC2),
+      body: Color(0xFFC4A386),
+      belly: Color(0xFFF9E4CE),
       accent: Color(0xFFFFAF9E),
-      detail: Color(0xFF6B5340),
+      // Quills take the detail colour, and at near-black they made a soft
+      // little animal look like a burr.
+      detail: Color(0xFF95795E),
     ),
     body: BodyShape.wide,
     ears: EarType.roundSmall,
@@ -589,7 +591,10 @@ const List<CreatureSpec> dayCreatures = <CreatureSpec>[
     tail: TailType.puff,
     snout: SnoutType.muzzle,
     pattern: PatternType.stars,
-    eyes: EyeStyle.glow,
+    // Not glow: glowing eyes take their colour from the accent, and this
+    // stag's accent is the pale cream of its own star markings, which left it
+    // staring out of two blank ovals.
+    eyes: EyeStyle.sparkle,
     limbs: LimbType.tallLegs,
     accent: Accent.sparkles,
   ),

@@ -246,7 +246,10 @@ const List<CreatureSpec> nightCreatures = <CreatureSpec>[
     body: BodyShape.blob,
     ears: EarType.roundSmall,
     snout: SnoutType.dot,
-    pattern: PatternType.patches,
+    // Eye rings, not patches: six loose blotches of a brown barely darker than
+    // the coat read as staining rather than markings, and a loris's whole face
+    // is the dark rings anyway.
+    pattern: PatternType.eyePatches,
     eyes: EyeStyle.big,
     limbs: LimbType.paws,
     eyeSpacing: 1.10,

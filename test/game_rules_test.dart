@@ -57,6 +57,46 @@ void main() {
       }
     });
 
+    test('permanent sinks keep costing real time however far in we are', () {
+      // The whole point of pricing rows and the wardrobe off progress: at flat
+      // prices, income overtook them and by the high teens every one of them
+      // was a few seconds' earnings.
+      for (final int highest in <int>[10, 16, 22, 30]) {
+        final double perSecond = Balance.meadowIncome(highest);
+        for (final int rows in <int>[6, 7, 8]) {
+          expect(
+            Balance.rowUnlockCost(rows, highest) / perSecond,
+            greaterThan(120),
+            reason: 'row $rows is pocket change at tier $highest',
+          );
+        }
+        for (int rank = 0; rank <= 4; rank++) {
+          expect(
+            Balance.accessoryCost(rank, highest) / perSecond,
+            greaterThan(50),
+            reason: 'band $rank is pocket change at tier $highest',
+          );
+        }
+      }
+    });
+
+    test('sinks never get cheaper as the player gets further in', () {
+      for (int t = 1; t <= 30; t++) {
+        for (final int rows in <int>[6, 7, 8]) {
+          expect(
+            Balance.rowUnlockCost(rows, t),
+            greaterThanOrEqualTo(Balance.rowUnlockCost(rows, t - 1)),
+          );
+        }
+        for (int rank = 0; rank <= 4; rank++) {
+          expect(
+            Balance.accessoryCost(rank, t),
+            greaterThanOrEqualTo(Balance.accessoryCost(rank, t - 1)),
+          );
+        }
+      }
+    });
+
     test('the mystery band keeps pace with progress but never exceeds it', () {
       expect(Balance.progressTier(0), 1);
       expect(Balance.progressTier(4), 1);
@@ -90,12 +130,17 @@ void main() {
       }
     });
 
-    test('cost and unlock both rise with the band', () {
+    test('cost and unlock both rise with the band, at any progress', () {
+      for (final int highest in <int>[0, 1, 8, 15, 22, 30]) {
+        for (int rank = 1; rank <= 4; rank++) {
+          expect(
+            Balance.accessoryCost(rank, highest),
+            greaterThan(Balance.accessoryCost(rank - 1, highest)),
+            reason: 'band $rank must beat band ${rank - 1} at tier $highest',
+          );
+        }
+      }
       for (int rank = 1; rank <= 4; rank++) {
-        expect(
-          Balance.accessoryCost(rank),
-          greaterThan(Balance.accessoryCost(rank - 1)),
-        );
         expect(
           Balance.accessoryUnlock(rank),
           greaterThan(Balance.accessoryUnlock(rank - 1)),

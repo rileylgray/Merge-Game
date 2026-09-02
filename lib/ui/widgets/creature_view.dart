@@ -108,7 +108,7 @@ class _CreatureViewState extends State<CreatureView>
         final double t = _controller.value;
         final double bob = animating ? math.sin(t * math.pi * 2 + _phase) : 0;
         return FractionalTranslation(
-          translation: Offset(0, bob * CreaturePainter.bobTravel),
+          translation: Offset(0, bob * CreaturePainter.bobTravelFor(widget.spec)),
           child: RepaintBoundary(
             child: CustomPaint(
               painter: CreaturePainter(

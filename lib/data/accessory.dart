@@ -31,7 +31,9 @@ class Accessory {
   /// Stable key used by save files.
   String get id => type.name;
 
-  double get cost => Balance.accessoryCost(rank);
+  /// Priced against progress rather than fixed, so ask the controller — it is
+  /// the thing that knows how far the player has got.
+  double costAt(int highestTier) => Balance.accessoryCost(rank, highestTier);
 
   /// Creatures the player must have discovered before this is offered.
   int get unlockDiscoveries => Balance.accessoryUnlock(rank);
