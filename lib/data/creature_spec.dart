@@ -43,6 +43,9 @@ enum BodyShape {
 
   /// Five-point rounded star — starfish.
   star,
+
+  /// Flattened lens seen from above, head merged into the front — rays.
+  disc,
 }
 
 /// Ears (or the closest analogue) drawn behind and above the body.
@@ -62,6 +65,9 @@ enum EarType {
   cat,
   horn,
   fan,
+
+  /// Flattened cephalofoil standing across the snout — hammerhead sharks.
+  hammer,
 }
 
 /// Head-top decoration drawn in front of the ears.
@@ -92,6 +98,10 @@ enum CrestType {
 
   /// Curly fleece topknot — lambs.
   woolTuft,
+
+  /// Spiny coronet raked back over the skull, plus the dorsal fan that always
+  /// comes with it — seahorses.
+  coronet,
 }
 
 enum TailType {
@@ -112,6 +122,9 @@ enum TailType {
 
   /// Banded brush — raccoons, red pandas, lemurs.
   ringed,
+
+  /// Prehensile tail wound into a tight spiral — seahorses.
+  coil,
 }
 
 enum WingType { none, feather, bat, butterfly, insect, fairy, dragon, tiny }
@@ -123,6 +136,10 @@ enum SnoutType {
   wideMuzzle,
   beakSmall,
   beakLong,
+
+  /// Long flattened bill carried straight out ahead — billfish.
+  sword,
+
   seahorse,
   trunk,
   duckBill,
@@ -216,6 +233,10 @@ enum Accent {
   star,
   fireflies,
   shellPlate,
+
+  /// Two fluted valves gaping open with the face between them — clams.
+  clamShell,
+
   crackedEgg,
   petals,
   droplet,

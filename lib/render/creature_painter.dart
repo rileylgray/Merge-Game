@@ -113,6 +113,7 @@ class CreaturePainter extends CustomPainter {
     _drawShellSpiral(canvas, s, a);
 
     _drawLimbs(canvas, s, a, back: false);
+    _drawFrontFins(canvas, s, a);
     _drawSnout(canvas, s, a);
     _drawFace(canvas, s, a);
     _drawFrontCrest(canvas, s, a);
@@ -145,6 +146,7 @@ class CreaturePainter extends CustomPainter {
         return _Coat.feather;
       case BodyShape.finned:
       case BodyShape.serpent:
+      case BodyShape.disc:
         return _Coat.scale;
       case BodyShape.bug:
       case BodyShape.shell:
@@ -423,19 +425,23 @@ class CreaturePainter extends CustomPainter {
           headH: .98,
         );
       case BodyShape.finned:
-        // Fish read as one fusiform mass; the head is the forward third.
+        // Fish read as one fusiform mass: deep through the shoulder, tapering
+        // back to a narrow wrist where the fluke attaches. The symmetric oval
+        // this used to be gave every swimmer in the game the same blunt pill
+        // for a silhouette and left the tail looking stuck on.
         return const _Plan(
-          bodyTop: .40,
-          bodyBot: .84,
-          halfW: .365,
+          bodyTop: .415,
+          bodyBot: .835,
+          halfW: .340,
           topRound: 1.05,
           botRound: 1.05,
           waist: .50,
-          headCy: .565,
-          headR: .230,
+          headCy: .570,
+          headR: .195,
           headW: 1.0,
           headH: 1.0,
-          headCx: .10,
+          headCx: .135,
+          bodyCx: .085,
           merged: true,
         );
       case BodyShape.serpent:
@@ -472,6 +478,24 @@ class CreaturePainter extends CustomPainter {
           headH: 1.0,
           merged: true,
         );
+      case BodyShape.disc:
+        // A ray is one continuous kite: the pectorals are fused to the body, so
+        // wings drawn as separate shapes behind a torso only ever read as a
+        // snowman holding two grey sails. The whole animal is the silhouette,
+        // and the head is a small bump merged into the front of it.
+        return const _Plan(
+          bodyTop: .385,
+          bodyBot: .865,
+          halfW: .470,
+          topRound: 1.0,
+          botRound: 1.0,
+          waist: .34,
+          headCy: .700,
+          headR: .200,
+          headW: 1.0,
+          headH: .92,
+          merged: true,
+        );
       case BodyShape.star:
         return const _Plan(
           bodyTop: .14,
@@ -501,7 +525,7 @@ class CreaturePainter extends CustomPainter {
     double sy(double unitY) => botY - (botY - unitY * s) * spec.heightScale;
 
     final double topY = sy(p.bodyTop);
-    const double cx = .5;
+    final double cx = .5 + p.bodyCx;
     final double bodyCx = cx * s;
 
     final Path body = spec.body == BodyShape.star
@@ -509,6 +533,12 @@ class CreaturePainter extends CustomPainter {
             Offset(bodyCx, sy(p.bodyTop + (p.bodyBot - p.bodyTop) * .5)),
             halfW,
           )
+        : spec.body == BodyShape.finned
+        ? _fishBody(cx: bodyCx, topY: topY, botY: botY, halfW: halfW)
+        : spec.body == BodyShape.disc
+        ? _rayBody(cx: bodyCx, topY: topY, botY: botY, halfW: halfW)
+        : spec.body == BodyShape.serpent
+        ? _serpentBody(cx: bodyCx, topY: topY, botY: botY, halfW: halfW)
         : _blobPath(
             cx: bodyCx,
             topY: topY,
@@ -576,8 +606,10 @@ class CreaturePainter extends CustomPainter {
     if (spec.crest == CrestType.spikes) {
       final Rect sb = silhouette.getBounds();
       // Down to the haunches, which is as far as a hedgehog's mantle of
-      // spines reaches. Below that is bare belly.
-      final double hemY = sb.top + sb.height * .74;
+      // spines reaches. Below that is bare belly — except on a spined ball,
+      // which is a pufferfish, and a pufferfish is spined the whole way round.
+      final bool allRound = spec.body == BodyShape.blob;
+      final double hemY = allRound ? sb.bottom : sb.top + sb.height * .74;
       for (final ui.PathMetric m in silhouette.computeMetrics()) {
         const int n = 96;
         for (int i = 0; i < n; i++) {
@@ -585,7 +617,7 @@ class CreaturePainter extends CustomPainter {
           if (t == null) continue;
           Offset nrm = Offset(t.vector.dy, -t.vector.dx);
           if (silhouette.contains(t.position + nrm * 2)) nrm = -nrm;
-          if (t.position.dy > hemY || nrm.dy > .55) continue;
+          if (t.position.dy > hemY || (!allRound && nrm.dy > .55)) continue;
           bristles.add(_Bristle(t.position, math.atan2(nrm.dy, nrm.dx)));
         }
       }
@@ -605,7 +637,25 @@ class CreaturePainter extends CustomPainter {
     );
     final double headBot = head.getBounds().bottom;
     Rect markRect = bodyRect;
-    if (!p.merged) {
+    if (spec.body == BodyShape.finned) {
+      // Markings stop at the caudal wrist. Run to the very end they get pinched
+      // into slivers by the taper and read as dirt on the tail.
+      markRect = Rect.fromLTRB(
+        bodyRect.left + bodyRect.width * .14,
+        bodyRect.top,
+        bodyRect.right,
+        botY,
+      );
+    } else if (spec.body == BodyShape.disc) {
+      // Markings keep to the body and inner wings. Spread over the full span
+      // they are sized to it too, and a ray ends up under three grey dinner
+      // plates.
+      markRect = Rect.fromCenter(
+        center: Offset(bodyCx, bodyRect.center.dy),
+        width: bodyRect.width * .60,
+        height: bodyRect.height,
+      );
+    } else if (!p.merged) {
       final double bandTop = math.max(topY, headBot - headR * .25);
       markRect = bandTop < botY - bodyRect.height * .30
           ? Rect.fromLTRB(bodyRect.left, bandTop, bodyRect.right, botY)
@@ -638,6 +688,194 @@ class CreaturePainter extends CustomPainter {
       halfW: halfW,
       lean: lean,
     );
+  }
+
+  /// Fusiform swimmer's torso: blunt and deep at the head end on the right,
+  /// tapering back to a narrow caudal wrist on the left.
+  ///
+  /// The asymmetry is the whole point. A fish drawn as an oval has no direction
+  /// in it, so the fluke has nothing to attach to and reads as a wedge parked
+  /// behind the animal — which is what every shark, whale and dolphin in the
+  /// sea meadow looked like. Narrowing the back third gives the tail a wrist to
+  /// grow out of and gives the silhouette somewhere to point.
+  static Path _fishBody({
+    required double cx,
+    required double topY,
+    required double botY,
+    required double halfW,
+  }) {
+    final double h = botY - topY;
+    // Slightly below centre: a fish carries its bulk low, and the spine runs
+    // nearer the back than the belly.
+    final double midY = topY + h * .46;
+    final double nose = cx + halfW;
+    final double wrist = cx - halfW;
+    // Deepest point of the body, a third back from the snout.
+    final double peak = cx + halfW * .22;
+
+    return Path()
+      // Caudal wrist, upper corner, then along the back to the shoulder.
+      ..moveTo(wrist, midY - h * .11)
+      ..cubicTo(
+        cx - halfW * .46,
+        topY + h * .14,
+        peak - halfW * .46,
+        topY,
+        peak,
+        topY,
+      )
+      // Shoulder over the brow and down the face to the snout.
+      ..cubicTo(
+        cx + halfW * .70,
+        topY + h * .02,
+        nose,
+        topY + h * .26,
+        nose,
+        midY + h * .06,
+      )
+      // Chin and under the throat.
+      ..cubicTo(
+        nose,
+        botY - h * .12,
+        cx + halfW * .68,
+        botY,
+        peak - halfW * .22,
+        botY,
+      )
+      // Belly running back to the wrist. Fuller than the back, so the taper
+      // reads as a body and not as a folded ribbon.
+      ..cubicTo(
+        cx - halfW * .40,
+        botY - h * .06,
+        wrist + halfW * .06,
+        midY + h * .32,
+        wrist,
+        midY + h * .13,
+      )
+      ..close();
+  }
+
+  /// A long body carried under a raised head: full depth at the shoulder,
+  /// arching over the middle and tapering to a narrow tail at the back.
+  ///
+  /// Everything on this plan is an animal with a back end — a shrimp's fan, a
+  /// lobster's abdomen, an eel's ribbon, a snail's foot. Drawn as a symmetric
+  /// log, which is what it used to be, all four had the same blunt sausage
+  /// behind them and the tail fins had nothing to grow out of.
+  static Path _serpentBody({
+    required double cx,
+    required double topY,
+    required double botY,
+    required double halfW,
+  }) {
+    final double h = botY - topY;
+    final double midY = topY + h * .50;
+    final double tailX = cx - halfW;
+    final double nose = cx + halfW;
+
+    return Path()
+      ..moveTo(tailX, midY - h * .18)
+      // Back, arching over the middle up to the shoulder.
+      ..cubicTo(
+        cx - halfW * .52,
+        topY - h * .08,
+        cx + halfW * .04,
+        topY - h * .04,
+        cx + halfW * .56,
+        topY + h * .10,
+      )
+      // Shoulder rounding down the front.
+      ..cubicTo(
+        cx + halfW * .92,
+        topY + h * .24,
+        nose,
+        midY + h * .12,
+        cx + halfW * .78,
+        botY - h * .04,
+      )
+      // Belly running back, rising into the tail stock.
+      ..cubicTo(
+        cx + halfW * .36,
+        botY + h * .06,
+        cx - halfW * .38,
+        botY - h * .04,
+        tailX + halfW * .12,
+        midY + h * .30,
+      )
+      // Rounded tail tip.
+      ..cubicTo(
+        tailX - halfW * .05,
+        midY + h * .18,
+        tailX - halfW * .05,
+        midY - h * .02,
+        tailX,
+        midY - h * .18,
+      )
+      ..close();
+  }
+
+  /// A ray's kite: a deep rounded core with two long wings sweeping out and
+  /// forward to sharp tips, and a trailing edge that scoops back in between
+  /// them. Drawn as one path so the whole animal takes a single light.
+  static Path _rayBody({
+    required double cx,
+    required double topY,
+    required double botY,
+    required double halfW,
+  }) {
+    final double h = botY - topY;
+    // Tips sit well below the crown, so the leading edge arcs down and out from
+    // a central hump. Level with it the whole animal reads as a flat kite.
+    final double tipY = topY + h * .42;
+    // Half-width of the central body the face has to fit into.
+    final double core = halfW * .38;
+
+    return Path()
+      ..moveTo(cx - halfW, tipY)
+      // Leading edge: out of the left tip, up over the crown, down to the right.
+      ..cubicTo(
+        cx - halfW * .80,
+        topY + h * .10,
+        cx - core * 1.10,
+        topY - h * .02,
+        cx,
+        topY,
+      )
+      ..cubicTo(
+        cx + core * 1.10,
+        topY - h * .02,
+        cx + halfW * .80,
+        topY + h * .10,
+        cx + halfW,
+        tipY,
+      )
+      // Trailing edge, hollowed between the tip and the body. The concave
+      // sweep is what separates a ray from a taco.
+      ..cubicTo(
+        cx + halfW * .78,
+        tipY + h * .06,
+        cx + core * 1.55,
+        topY + h * .60,
+        cx + core * .90,
+        botY - h * .10,
+      )
+      ..cubicTo(
+        cx + core * .55,
+        botY + h * .05,
+        cx - core * .55,
+        botY + h * .05,
+        cx - core * .90,
+        botY - h * .10,
+      )
+      ..cubicTo(
+        cx - core * 1.55,
+        topY + h * .60,
+        cx - halfW * .78,
+        tipY + h * .06,
+        cx - halfW,
+        tipY,
+      )
+      ..close();
   }
 
   /// Soft five-point star with rounded arms, for starfish and their kin.
@@ -780,7 +1018,7 @@ class CreaturePainter extends CustomPainter {
   /// sticker edge under every creature.
   void _drawShadow(Canvas canvas, double s, _Anatomy a) {
     final Rect r = Rect.fromCenter(
-      center: Offset(.5 * s, .928 * s),
+      center: Offset(a.bodyBounds.center.dx, .928 * s),
       width: a.halfW * 2.15,
       height: s * .082,
     );
@@ -920,8 +1158,11 @@ class CreaturePainter extends CustomPainter {
       // the vertical bars of a prison jumpsuit — which is what a striped
       // hadrosaur looked like at tile size.
       final double len = b.height * (bold ? 1.20 : .34 + .58 * m);
-      final double w0 = b.width * (bold ? .11 : .038);
-      final double w1 = b.width * (bold ? .10 : .017);
+      // Bold bars are bands on an animal, not a coat of paint: at the old width
+      // four of them covered five sixths of a clownfish and the orange read as
+      // the stripe.
+      final double w0 = b.width * (bold ? .058 : .038);
+      final double w1 = b.width * (bold ? .050 : .017);
       canvas.drawPath(
         _taper(
           Offset(x, b.top - b.height * .06),
@@ -951,8 +1192,71 @@ class CreaturePainter extends CustomPainter {
     }
   }
 
+  /// Orca livery: white underside, one white patch behind the eye, pale saddle
+  /// behind the dorsal. Three markings that nothing else in the sea has, and
+  /// between them the whole reason an orca is recognisable at tile size.
+  void _orcaLivery(Canvas canvas, double s, _Anatomy a) {
+    final Rect b = a.bodyBounds;
+    canvas.save();
+    canvas.clipPath(a.silhouette);
+
+    // Saddle: a soft grey wash over the back behind the fin.
+    canvas.drawOval(
+      Rect.fromCenter(
+        center: Offset(b.left + b.width * .40, b.top + b.height * .16),
+        width: b.width * .46,
+        height: b.height * .26,
+      ),
+      _fill(_shade(_body, .34).withValues(alpha: .55)),
+    );
+
+    // Underside: white under the chin, dipping deepest amidships and rising
+    // again over the tail stock. Run as a flat band it read as a tuxedo shirt.
+    final Path belly = Path()
+      ..moveTo(b.right, b.top + b.height * .62)
+      ..cubicTo(
+        b.center.dx + b.width * .22,
+        b.top + b.height * .58,
+        b.center.dx - b.width * .08,
+        b.top + b.height * .84,
+        b.left + b.width * .04,
+        b.top + b.height * .62,
+      )
+      ..lineTo(b.left, b.bottom + b.height * .30)
+      ..lineTo(b.right, b.bottom + b.height * .30)
+      ..close();
+    canvas.drawPath(belly, _fill(_belly));
+
+    // Eye patch: an oval set behind and above the eye, raked back. Centred on
+    // the eye it reads as a mask, which is the panda's marking, not an orca's.
+    canvas.save();
+    canvas.translate(
+      a.faceCenter.dx - a.faceRadius * .74,
+      a.faceCenter.dy - a.faceRadius * .46,
+    );
+    canvas.rotate(-.24);
+    canvas.drawOval(
+      Rect.fromCenter(
+        center: Offset.zero,
+        width: a.faceRadius * .92,
+        height: a.faceRadius * .42,
+      ),
+      _fill(_accent),
+    );
+    canvas.restore();
+    canvas.restore();
+  }
+
   void _drawPattern(Canvas canvas, double s, _Anatomy a, _Rng rng) {
     if (spec.pattern == PatternType.none) return;
+
+    // Eye patches on a swimmer mean an orca, and an orca's markings are a whole
+    // body livery rather than a pair of spots on the face.
+    if (spec.pattern == PatternType.eyePatches &&
+        spec.body == BodyShape.finned) {
+      _orcaLivery(canvas, s, a);
+      return;
+    }
 
     // Freckles, masks and caps are face markings and belong on the head.
     // A dorsal stripe runs over both masses. Everything else clips to the
@@ -968,7 +1272,12 @@ class CreaturePainter extends CustomPainter {
     canvas.clipPath(
       facial.contains(spec.pattern)
           ? a.head
-          : spec.pattern == PatternType.dorsalStripe
+          : spec.pattern == PatternType.dorsalStripe ||
+                // A swimmer is one continuous form with no neck to stop at, so
+                // its markings run onto the head — countershading over the jaw,
+                // a clownfish's band behind the eye. Clipped to the torso they
+                // stopped dead at the skull and left a bite out of every one.
+                spec.body == BodyShape.finned
           ? a.silhouette
           : a.torso,
     );
@@ -987,11 +1296,11 @@ class CreaturePainter extends CustomPainter {
           spec.body == BodyShape.finned
               ? Rect.fromCenter(
                   center: Offset(
-                    b.center.dx + b.width * .06,
-                    b.bottom - b.height * .22,
+                    b.center.dx + b.width * .10,
+                    b.bottom - b.height * .10,
                   ),
-                  width: b.width * .92,
-                  height: b.height * .52,
+                  width: b.width * 1.04,
+                  height: b.height * .58,
                 )
               : Rect.fromCenter(
                   center: Offset(b.center.dx, b.bottom - b.height * .34),
@@ -1581,6 +1890,42 @@ class CreaturePainter extends CustomPainter {
         });
 
       case EarType.sideFin:
+        // On a side-on swimmer only the off-side fin belongs back here; the
+        // near one is drawn over the flank by _drawFrontFins.
+        if (spec.body == BodyShape.finned) {
+          _pectoral(canvas, s, a.bodyBounds, _shade(_belly, -.22), far: true);
+          break;
+        }
+        if (spec.body == BodyShape.drop) {
+          // Mantle fins ride on the shoulders of the bell, not beside the face,
+          // and they lie back along it. Standing straight up they read as
+          // devil's horns.
+          pair((double sign) {
+            final Rect bb = a.bodyBounds;
+            final Offset r0 = Offset(
+              bb.center.dx + sign * bb.width * .20,
+              bb.top + bb.height * .12,
+            );
+            final Path p = Path()
+              ..moveTo(r0.dx, r0.dy - bb.height * .06)
+              ..quadraticBezierTo(
+                r0.dx + sign * bb.width * .40,
+                r0.dy - bb.height * .04,
+                r0.dx + sign * bb.width * .58,
+                r0.dy + bb.height * .18,
+              )
+              ..quadraticBezierTo(
+                r0.dx + sign * bb.width * .26,
+                r0.dy + bb.height * .20,
+                r0.dx,
+                r0.dy + bb.height * .20,
+              )
+              ..close();
+            canvas.drawPath(p, _volume(_shade(_body, -.08), p.getBounds()));
+            canvas.drawPath(p, line);
+          });
+          break;
+        }
         pair((double sign) {
           final Path p = Path()
             ..moveTo(
@@ -1618,6 +1963,47 @@ class CreaturePainter extends CustomPainter {
             );
           }
         });
+
+      case EarType.hammer:
+        // The mallet lies across the top of the skull: a wide horizontal blade
+        // with a rounded lobe at each end, half sunk into the crown so it reads
+        // as part of the head. Stood on end at the front of the snout — where
+        // it went first — the two lobes read as ears.
+        final double hr = a.faceRadius;
+        final double hx = a.faceCenter.dx + hr * .32;
+        final double hy = a.headBounds.top + hr * .26;
+        final double arm = hr * 1.28;
+        final double hh = hr * .32;
+        Rect lobeAt(double dx) => Rect.fromCenter(
+          center: Offset(hx + dx, hy),
+          width: hh * 1.90,
+          height: hh * 2.30,
+        );
+        Path bar = Path.combine(
+          PathOperation.union,
+          Path()..addOval(lobeAt(-arm)),
+          Path()..addOval(lobeAt(arm)),
+        );
+        bar = Path.combine(
+          PathOperation.union,
+          bar,
+          Path()..addRRect(
+            RRect.fromRectAndRadius(
+              Rect.fromLTRB(hx - arm, hy - hh, hx + arm, hy + hh),
+              Radius.circular(hh * .55),
+            ),
+          ),
+        );
+        canvas.drawPath(bar, _volume(_body, bar.getBounds(), lift: .13));
+        canvas.drawPath(bar, _stroke(_line.withValues(alpha: .50), s * .014));
+        // Nostril groove near each tip, on the leading edge of the blade.
+        for (final int sign in const <int>[-1, 1]) {
+          canvas.drawLine(
+            Offset(hx + sign * arm * 1.02, hy + hh * .60),
+            Offset(hx + sign * arm * .62, hy + hh * .84),
+            _stroke(_shade(_body, -.34).withValues(alpha: .40), s * .009),
+          );
+        }
 
       case EarType.frill:
         // A scalloped shield fanning up and out behind the skull. A plain ring
@@ -1860,18 +2246,21 @@ class CreaturePainter extends CustomPainter {
         // over the shoulders and swept toward the tail. The broad rounded dome
         // a dimetrodon wants reads as a hood pulled up over a dolphin's head.
         final Path p = spec.body == BodyShape.finned
+            // Leading edge rising from the front root, apex swept back toward
+            // the tail, trailing edge hollowed under it. It used to rake the
+            // other way, which put the fin's point over the animal's own head.
             ? (Path()
-              ..moveTo(cxf - b.width * .26, b.top + b.height * .16)
+              ..moveTo(cxf + b.width * .14, b.top + b.height * .16)
               ..quadraticBezierTo(
-                cxf - b.width * .04,
-                b.top - b.height * .30,
-                cxf + b.width * .16,
+                cxf - b.width * .06,
+                b.top - b.height * .28,
+                cxf - b.width * .26,
                 b.top - b.height * .34,
               )
               ..quadraticBezierTo(
-                cxf + b.width * .04,
-                b.top - b.height * .04,
-                cxf + b.width * .10,
+                cxf - b.width * .12,
+                b.top - b.height * .02,
+                cxf - b.width * .18,
                 b.top + b.height * .18,
               )
               ..close())
@@ -1900,6 +2289,63 @@ class CreaturePainter extends CustomPainter {
               ..moveTo(cxf + i * b.width * .14, b.top + b.height * .18)
               ..lineTo(cxf + i * b.width * .10, b.top - b.height * .18),
             _stroke(_shade(_body, -.26).withValues(alpha: .5), s * .007),
+          );
+        }
+
+      case CrestType.coronet:
+        // Two fins in one, because a seahorse never has one without the other:
+        // the spiny coronet raked back over the skull, and the dorsal fan on
+        // the middle of the back that does the actual swimming.
+        final Rect bb = a.bodyBounds;
+        for (int i = 0; i < 3; i++) {
+          final double root = .06 - i * .34;
+          _part(
+            canvas,
+            s,
+            _taper(
+              Offset(top.dx + hw * root, top.dy + hw * .34),
+              Offset(top.dx + hw * (root - .40), top.dy - hw * (.06 + i * .06)),
+              Offset(top.dx + hw * (root - .96), top.dy - hw * (.20 + i * .12)),
+              hw * (.19 - i * .03),
+              hw * .030,
+            ),
+            _shade(_body, -.04),
+            width: .008,
+            alpha: .34,
+          );
+        }
+        final Path fan = Path()
+          ..moveTo(bb.left + bb.width * .18, bb.top + bb.height * .18)
+          ..quadraticBezierTo(
+            bb.left - bb.width * .30,
+            bb.top + bb.height * .26,
+            bb.left - bb.width * .34,
+            bb.top + bb.height * .60,
+          )
+          ..quadraticBezierTo(
+            bb.left - bb.width * .04,
+            bb.top + bb.height * .60,
+            bb.left + bb.width * .18,
+            bb.top + bb.height * .52,
+          )
+          ..close();
+        canvas.drawPath(fan, _volume(_shade(_accent, .10), fan.getBounds()));
+        canvas.drawPath(
+          fan,
+          _stroke(_shade(_accent, -.34).withValues(alpha: .45), s * .009),
+        );
+        for (int i = 0; i < 3; i++) {
+          canvas.drawPath(
+            Path()
+              ..moveTo(
+                bb.left + bb.width * .12,
+                bb.top + bb.height * (.24 + i * .10),
+              )
+              ..lineTo(
+                bb.left - bb.width * .24,
+                bb.top + bb.height * (.34 + i * .09),
+              ),
+            _stroke(_shade(_accent, -.30).withValues(alpha: .45), s * .007),
           );
         }
 
@@ -2102,6 +2548,45 @@ class CreaturePainter extends CustomPainter {
         }
 
       case CrestType.unicorn:
+        if (spec.body == BodyShape.finned) {
+          // A narwhal's tusk is a tooth, and it points where the animal is
+          // going. Planted on the forehead like a unicorn's it turned the whole
+          // creature into a horse having a bad day.
+          final Rect bb = a.bodyBounds;
+          final Offset root = Offset(
+            bb.right - bb.width * .16,
+            a.faceCenter.dy + a.faceRadius * .50,
+          );
+          final Offset tip = Offset(
+            bb.right + bb.width * .44,
+            a.faceCenter.dy - a.faceRadius * .04,
+          );
+          final Path tusk = _taper(
+            root,
+            Offset.lerp(root, tip, .5)!,
+            tip,
+            hw * .17,
+            hw * .022,
+          );
+          canvas.drawPath(tusk, _volume(_detail, tusk.getBounds(), lift: .22));
+          canvas.drawPath(
+            tusk,
+            _stroke(_shade(_detail, -.26).withValues(alpha: .60), s * .007),
+          );
+          // Ridges raked across the shaft — the spiral that makes it a tusk.
+          canvas.save();
+          canvas.clipPath(tusk);
+          for (int i = 1; i <= 5; i++) {
+            final Offset c = Offset.lerp(root, tip, i / 6)!;
+            canvas.drawLine(
+              Offset(c.dx - hw * .10, c.dy - hw * .22),
+              Offset(c.dx + hw * .06, c.dy + hw * .22),
+              _stroke(_shade(_detail, -.26).withValues(alpha: .55), s * .007),
+            );
+          }
+          canvas.restore();
+          break;
+        }
         final Path p = Path()
           ..moveTo(top.dx - hw * .17, top.dy + hw * .12)
           ..quadraticBezierTo(
@@ -2432,7 +2917,15 @@ class CreaturePainter extends CustomPainter {
 
   void _drawTail(Canvas canvas, double s, _Anatomy a) {
     if (spec.tail == TailType.none) return;
-    final Rect b = a.bodyBounds;
+    // A ray's tail comes off the body, not off a wing tip, and it is scaled to
+    // the body — measured against the full span it would be four tiles long.
+    final Rect b = spec.body == BodyShape.disc
+        ? Rect.fromCenter(
+            center: a.bodyBounds.center,
+            width: a.bodyBounds.width * .46,
+            height: a.bodyBounds.height,
+          )
+        : a.bodyBounds;
     // Rooted well inside the silhouette: tails are drawn behind the body, so a
     // root on the outline leaves a visible seam where the two shapes meet.
     final Offset root = Offset(
@@ -2488,6 +2981,47 @@ class CreaturePainter extends CustomPainter {
           ),
           _body,
         );
+
+      case TailType.coil:
+        // A prehensile tail wound into a spiral off the base of the abdomen.
+        // Anchored on the outside and tightening inward, so the animal reads as
+        // gripping something rather than wearing a cinnamon bun.
+        final Offset c = Offset(
+          b.left - b.width * .12,
+          b.bottom - b.height * .06,
+        );
+        final double rOut = b.width * .52;
+        const double turns = 1.55;
+        const int steps = 40;
+        final List<Offset> spine = <Offset>[
+          Offset(b.center.dx, b.bottom - b.height * .30),
+          for (int i = 0; i <= steps; i++)
+            () {
+              final double t = i / steps;
+              // Starts pointing down off the belly and winds anticlockwise.
+              final double ang = -1.15 + t * turns * 2 * math.pi;
+              final double rad = rOut * (1 - t * .74);
+              return Offset(
+                c.dx + math.cos(ang) * rad,
+                c.dy + math.sin(ang) * rad * .92,
+              );
+            }(),
+        ];
+        final Path coil = _ribbon(spine, b.width * .105, b.width * .022);
+        _part(canvas, s, coil, _shade(_body, -.04), width: .009, alpha: .40);
+        // Segment rings, the armour plating a seahorse's tail is built from.
+        canvas.save();
+        canvas.clipPath(coil);
+        for (int i = 2; i < spine.length - 3; i += 4) {
+          final Offset d = spine[i + 1] - spine[i - 1];
+          final Offset n = _perp(d) * b.width * .11;
+          canvas.drawLine(
+            spine[i] + n,
+            spine[i] - n,
+            _stroke(_shade(_body, -.28).withValues(alpha: .45), s * .008),
+          );
+        }
+        canvas.restore();
 
       case TailType.bushy:
       case TailType.ringed:
@@ -2562,48 +3096,132 @@ class CreaturePainter extends CustomPainter {
         );
 
       case TailType.fish:
-        // Overlaps the body generously; a fluke that only kisses the outline
+        if (spec.body == BodyShape.serpent) {
+          // A shrimp or a lobster ends in a telson: three or four flat plates
+          // fanned out flat behind the abdomen. A fish's forked fluke on the
+          // end of a segmented body reads as neither one animal nor the other.
+          final Offset hinge = Offset(
+            b.left + b.width * .10,
+            b.center.dy + b.height * .04,
+          );
+          for (int i = 0; i < 3; i++) {
+            canvas.save();
+            canvas.translate(hinge.dx, hinge.dy);
+            canvas.rotate(-.46 + i * .46);
+            final Rect blade = Rect.fromCenter(
+              center: Offset(-b.width * .17, 0),
+              width: b.width * .40,
+              height: b.height * .30,
+            );
+            final Color c = i == 1 ? _shade(_body, -.04) : _shade(_body, -.16);
+            canvas.drawOval(blade, _volume(c, blade, lift: .16));
+            canvas.drawOval(
+              blade,
+              _stroke(_shade(c, -.32).withValues(alpha: .45), s * .009),
+            );
+            canvas.restore();
+          }
+          break;
+        }
+        // Grows out of the caudal wrist — the narrow end of the fusiform body —
+        // and overlaps it generously. A fluke that only kisses the outline
         // reads as a separate wedge floating behind the animal.
-        final Offset r0 = Offset(
-          b.left + b.width * .16,
-          b.center.dy + b.height * .10,
-        );
+        final bool fish = spec.body == BodyShape.finned;
+        final Offset r0 = fish
+            ? Offset(b.left + b.width * .08, b.top + b.height * .48)
+            : Offset(b.left + b.width * .16, b.center.dy + b.height * .10);
         // Big enough to balance the head. A fluke scaled to a polite flick
         // reads as a wedge someone left behind the animal, and it was half of
         // why the whales and sharks were all silhouette and no shape.
+        final double fw = b.width * (fish ? .46 : .40);
+        final double fu = b.height * (fish ? .60 : .46);
+        final double fd = b.height * (fish ? .56 : .44);
         final Path p = Path()
-          ..moveTo(r0.dx + b.width * .16, r0.dy)
+          ..moveTo(r0.dx + b.width * .18, r0.dy)
+          // Leading edge of the upper lobe, raked back.
           ..quadraticBezierTo(
-            r0.dx - b.width * .18,
-            r0.dy - b.height * .22,
-            r0.dx - b.width * .40,
-            r0.dy - b.height * .46,
+            r0.dx - fw * .40,
+            r0.dy - fu * .38,
+            r0.dx - fw,
+            r0.dy - fu,
+          )
+          // Trailing edge, hollowed into the fork.
+          ..quadraticBezierTo(
+            r0.dx - fw * .40,
+            r0.dy - fu * .26,
+            r0.dx - fw * .30,
+            r0.dy + b.height * .02,
           )
           ..quadraticBezierTo(
-            r0.dx - b.width * .16,
-            r0.dy,
-            r0.dx - b.width * .40,
-            r0.dy + b.height * .44,
+            r0.dx - fw * .40,
+            r0.dy + fd * .26,
+            r0.dx - fw * .96,
+            r0.dy + fd,
           )
           ..quadraticBezierTo(
-            r0.dx - b.width * .14,
-            r0.dy + b.height * .22,
-            r0.dx + b.width * .16,
+            r0.dx - fw * .38,
+            r0.dy + fd * .36,
+            r0.dx + b.width * .18,
             r0.dy,
           )
           ..close();
-        _part(canvas, s, p, _shade(_body, -.06));
+        _part(canvas, s, p, _shade(_body, -.10));
         // Fin rays so the fluke reads as membrane over bone.
         for (int i = -1; i <= 1; i++) {
           canvas.drawPath(
             Path()
-              ..moveTo(r0.dx + b.width * .02, r0.dy + i * b.height * .05)
-              ..lineTo(r0.dx - b.width * .30, r0.dy + i * b.height * .30),
-            _stroke(_shade(_body, -.28).withValues(alpha: .45), s * .007),
+              ..moveTo(r0.dx + b.width * .02, r0.dy + i * b.height * .04)
+              ..lineTo(r0.dx - fw * .62, r0.dy + i * fu * .58),
+            _stroke(_shade(_body, -.30).withValues(alpha: .42), s * .007),
           );
+        }
+        // Anal fin: a small blade under the wrist. Two fins meeting at the
+        // wrist is what separates a fish from a lozenge with a tail on it.
+        if (fish) {
+          final Path anal = Path()
+            ..moveTo(r0.dx + b.width * .34, b.bottom - b.height * .10)
+            ..quadraticBezierTo(
+              r0.dx + b.width * .20,
+              b.bottom + b.height * .16,
+              r0.dx + b.width * .02,
+              b.bottom + b.height * .19,
+            )
+            ..quadraticBezierTo(
+              r0.dx + b.width * .18,
+              b.bottom - b.height * .02,
+              r0.dx + b.width * .34,
+              b.bottom - b.height * .10,
+            )
+            ..close();
+          _part(canvas, s, anal, _shade(_body, -.10));
         }
 
       case TailType.whip:
+        if (spec.body == BodyShape.disc) {
+          // Same reasoning as the stingray's: out behind the disc and below it,
+          // long and thin, where it reads as a tail rather than a chip.
+          final Rect bb = a.bodyBounds;
+          _part(
+            canvas,
+            s,
+            _taper(
+              Offset(bb.center.dx, bb.center.dy + bb.height * .18),
+              Offset(
+                bb.center.dx - bb.width * .14,
+                bb.bottom + bb.height * .12,
+              ),
+              Offset(
+                bb.center.dx - bb.width * .36,
+                bb.bottom + bb.height * .20,
+              ),
+              bb.width * .028,
+              bb.width * .006,
+            ),
+            _shade(_body, -.06),
+            alpha: .34,
+          );
+          break;
+        }
         _part(
           canvas,
           s,
@@ -2760,6 +3378,39 @@ class CreaturePainter extends CustomPainter {
         }
 
       case TailType.stinger:
+        if (spec.body == BodyShape.disc) {
+          // A ray trails its whip out behind and below the disc, where it can
+          // actually be seen. Tucked under the rear like a scorpion's barb it
+          // disappeared into the wing.
+          final Rect bb = a.bodyBounds;
+          final Offset barb = Offset(
+            bb.center.dx - bb.width * .30,
+            bb.bottom + bb.height * .22,
+          );
+          _part(
+            canvas,
+            s,
+            _taper(
+              Offset(bb.center.dx, bb.center.dy + bb.height * .20),
+              Offset(bb.center.dx - bb.width * .12, bb.bottom + bb.height * .10),
+              barb,
+              bb.width * .030,
+              bb.width * .009,
+            ),
+            _shade(_body, -.06),
+            alpha: .34,
+          );
+          // The sting itself.
+          canvas.drawPath(
+            Path()
+              ..moveTo(barb.dx + bb.width * .030, barb.dy - bb.height * .05)
+              ..lineTo(barb.dx - bb.width * .045, barb.dy + bb.height * .06)
+              ..lineTo(barb.dx + bb.width * .010, barb.dy - bb.height * .10)
+              ..close(),
+            _fill(_detail),
+          );
+          break;
+        }
         // A short barb tucked under the rear. A long curl swinging up the side
         // of the body reads as a handle rather than a sting.
         final Offset tip = Offset(
@@ -3132,6 +3783,79 @@ class CreaturePainter extends CustomPainter {
     }
   }
 
+  /// Pectoral fin on a side-on swimmer: a blade rooted behind the gill and
+  /// raked back down the flank, the way a fin sits on an animal under way.
+  ///
+  /// [far] draws the off-side fin instead — smaller, darker and set back, so
+  /// only its tip clears the belly. That sliver is the entire depth cue; drawn
+  /// as a matching pair the two fins flatten the fish into a paper cut-out.
+  void _pectoral(
+    Canvas canvas,
+    double s,
+    Rect b,
+    Color c, {
+    bool far = false,
+    double scale = 1,
+  }) {
+    final double k = scale * (far ? .74 : 1);
+    // Well behind the eye and low on the flank. Rooted any further forward the
+    // blade sweeps back across the face and reads as a moustache.
+    final Offset root = Offset(
+      b.left + b.width * (far ? .58 : .50),
+      b.top + b.height * (far ? .60 : .66),
+    );
+    final double len = b.width * .27 * k;
+    final double drop = b.height * .32 * k;
+    final Offset tip = Offset(root.dx - len, root.dy + drop);
+    // A broad rounded blade, not a spike. Tapered to a point it read as a tusk
+    // hanging off the jaw — which is exactly what the clownfish grew.
+    final Path p = Path()
+      ..moveTo(root.dx + b.width * .09, root.dy - b.height * .11)
+      ..quadraticBezierTo(
+        root.dx - len * .55,
+        root.dy + drop * .16,
+        tip.dx,
+        tip.dy,
+      )
+      ..quadraticBezierTo(
+        root.dx - len * .20,
+        root.dy + drop * .88,
+        root.dx + b.width * .04,
+        root.dy + b.height * .15,
+      )
+      ..close();
+    _part(canvas, s, p, c, width: .008, alpha: .34);
+    if (far) return;
+    // Rays fanning toward the tip, so the blade reads as membrane over bone.
+    for (int i = 0; i < 3; i++) {
+      canvas.drawPath(
+        Path()
+          ..moveTo(root.dx + b.width * .02, root.dy - b.height * .02)
+          ..quadraticBezierTo(
+            root.dx - len * .50,
+            root.dy + drop * (.26 + i * .22),
+            tip.dx + len * (.16 + i * .10),
+            tip.dy - drop * (.06 - i * .12),
+          ),
+        _stroke(_shade(c, -.30).withValues(alpha: .38), s * .006),
+      );
+    }
+  }
+
+  /// Pectoral fins that belong on top of the flank rather than behind it.
+  ///
+  /// [EarType.sideFin] is drawn with the ears, which is a layer behind the
+  /// body — right for a puffer's symmetric pair seen head-on, wrong for a fish
+  /// seen from the side, where the near fin has to sit over the flank. Drawn
+  /// with the rest of the ears the near fin vanished and only the far one
+  /// showed, poking out past the snout like a bow thruster.
+  void _drawFrontFins(Canvas canvas, double s, _Anatomy a) {
+    if (spec.ears != EarType.sideFin || spec.body != BodyShape.finned) return;
+    // A lightened body colour rather than the belly: on a clownfish the belly
+    // is the same near-white as its bands, and the fin disappeared into one.
+    _pectoral(canvas, s, a.bodyBounds, _shade(_body, .30));
+  }
+
   /// A limb rooted inside the silhouette and tapering to the joint, so the
   /// mass is continuous from body to foot.
   void _leg(
@@ -3401,36 +4125,36 @@ class CreaturePainter extends CustomPainter {
         // A fish has no business standing on anything. Toed feet planted under
         // the belly are right for a seal or a turtle hauled out on a rock, and
         // they were what made every shark, dolphin and whale in the meadow read
-        // as a grey loaf on stubby legs. A swimmer gets pectoral fins on the
-        // flank and nothing underneath.
-        final bool swims = spec.body == BodyShape.finned;
+        // as a grey loaf on stubby legs. A swimmer gets one pectoral fin on the
+        // near flank and nothing underneath — a symmetric pair on a side-on
+        // animal reads as two paddles bolted to its chin.
+        if (spec.body == BodyShape.finned) {
+          _pectoral(canvas, s, b, _shade(_body, -.07));
+          break;
+        }
         for (final int sign in const <int>[-1, 1]) {
-          if (!swims) {
-            _foot(
-              canvas,
-              s,
-              Offset(
-                b.center.dx + sign * b.width * .29,
-                b.bottom - b.height * .02,
-              ),
-              b.width * .34,
-              b.height * .14,
-              _shade(_body, -.05),
-              toes: 3,
-            );
-          }
+          _foot(
+            canvas,
+            s,
+            Offset(
+              b.center.dx + sign * b.width * .29,
+              b.bottom - b.height * .02,
+            ),
+            b.width * .34,
+            b.height * .14,
+            _shade(_body, -.05),
+            toes: 3,
+          );
           canvas.save();
           canvas.translate(
-            b.center.dx + sign * b.width * (swims ? .30 : .42),
-            b.center.dy + b.height * (swims ? .30 : .22),
+            b.center.dx + sign * b.width * .42,
+            b.center.dy + b.height * .22,
           );
-          // Raked back toward the tail, the way a pectoral fin sits when the
-          // animal is moving forward.
-          canvas.rotate(swims ? -.95 : sign * .62);
+          canvas.rotate(sign * .62);
           final Rect r = Rect.fromCenter(
             center: Offset.zero,
-            width: b.width * (swims ? .30 : .21),
-            height: b.height * (swims ? .17 : .38),
+            width: b.width * .21,
+            height: b.height * .38,
           );
           canvas.drawOval(r, _volume(_shade(_body, -.07), r));
           canvas.drawOval(
@@ -3646,51 +4370,132 @@ class CreaturePainter extends CustomPainter {
           _stroke(_shade(_detail, -.30).withValues(alpha: .70), s * .008),
         );
 
-      case SnoutType.seahorse:
-        // Rooted at the chin and angled down and out, in the body colour with
-        // only the tip picked out. Drawn in the hard detail colour and stuck
-        // out sideways from the middle of the face — which is where a muzzle
-        // this long has to start — it read as a cigar rather than a snout.
-        final double sy0 = my + r * .12;
-        final Path p = Path()
-          ..moveTo(f.dx - r * .16, sy0 - r * .16)
-          ..quadraticBezierTo(
-            f.dx + r * .16,
-            sy0 - r * .10,
-            f.dx + r * .40,
-            sy0 + r * .14,
-          )
-          ..quadraticBezierTo(
-            f.dx + r * .48,
-            sy0 + r * .24,
-            f.dx + r * .36,
-            sy0 + r * .30,
-          )
-          ..quadraticBezierTo(
-            f.dx + r * .14,
-            sy0 + r * .22,
-            f.dx - r * .16,
-            sy0 + r * .16,
-          )
+      case SnoutType.sword:
+        // The bill is the whole animal. Half a body length of flattened rapier
+        // carried dead ahead, with the short lower jaw tucked under its root.
+        final Rect bb = a.bodyBounds;
+        final double x0 = bb.right - bb.width * .16;
+        final double x1 = bb.right + bb.width * .40;
+        final double by = my - r * .18;
+        final Path bill = Path()
+          ..moveTo(x0, by - r * .34)
+          ..quadraticBezierTo(x1 - r * .70, by - r * .16, x1, by - r * .02)
+          ..quadraticBezierTo(x1 - r * .70, by + r * .10, x0, by + r * .26)
           ..close();
+        canvas.drawPath(bill, _volume(_detail, bill.getBounds(), lift: .24));
         canvas.drawPath(
-          p,
-          _volume(_shade(_body, -.06), p.getBounds(), lift: .18),
+          bill,
+          _stroke(_shade(_detail, -.32).withValues(alpha: .55), s * .008),
         );
+        // Ridge down the middle, so the bill reads as a blade with an edge.
         canvas.drawPath(
-          p,
-          _stroke(_shade(_body, -.30).withValues(alpha: .45), s * .008),
+          Path()
+            ..moveTo(x0 + r * .10, by - r * .06)
+            ..quadraticBezierTo(
+              (x0 + x1) * .5,
+              by - r * .02,
+              x1 - r * .16,
+              by - r * .01,
+            ),
+          _stroke(Colors.white.withValues(alpha: .30), s * .008),
         );
-        canvas.drawOval(
-          Rect.fromCenter(
-            center: Offset(f.dx + r * .38, sy0 + r * .20),
-            width: r * .14,
-            height: r * .12,
-          ),
-          _fill(_shade(_detail, -.10)),
+        // Short lower jaw under the bill's root.
+        canvas.drawPath(
+          Path()
+            ..moveTo(x0 - r * .34, by + r * .26)
+            ..quadraticBezierTo(
+              x0 + r * .04,
+              by + r * .50,
+              x0 + r * .30,
+              by + r * .30,
+            ),
+          _stroke(_shade(_body, -.36).withValues(alpha: .60), s * .012),
         );
 
+      case SnoutType.seahorse:
+        // A long pipette carried out and down from the cheek, in the body
+        // colour with only the mouth picked out. The old version was barely
+        // half this long and stopped level with the jaw, which left a stub that
+        // read as a beak — and a beak on a round head is a chicken.
+        final double sy0 = my - r * .06;
+        final Offset root = Offset(f.dx + r * .18, sy0);
+        final Offset tip = Offset(f.dx + r * 1.12, sy0 + r * .52);
+        final Path p = _ribbon(
+          <Offset>[
+            root,
+            Offset.lerp(root, tip, .34)! + Offset(0, -r * .05),
+            Offset.lerp(root, tip, .70)! + Offset(0, -r * .02),
+            tip,
+          ],
+          r * .30,
+          r * .17,
+        );
+        canvas.drawPath(
+          p,
+          _volume(_shade(_body, -.04), p.getBounds(), lift: .18),
+        );
+        canvas.drawPath(
+          p,
+          _stroke(_shade(_body, -.30).withValues(alpha: .45), s * .009),
+        );
+        // Ridge along the top of the tube and the round mouth at the end.
+        canvas.drawPath(
+          Path()
+            ..moveTo(root.dx, root.dy - r * .10)
+            ..quadraticBezierTo(
+              (root.dx + tip.dx) * .5,
+              (root.dy + tip.dy) * .5 - r * .18,
+              tip.dx - r * .10,
+              tip.dy - r * .12,
+            ),
+          _stroke(Colors.white.withValues(alpha: .22), s * .010),
+        );
+        canvas.drawCircle(tip, r * .13, _fill(_shade(_detail, -.06)));
+
       case SnoutType.beakLong:
+        if (spec.body == BodyShape.finned) {
+          // A rostrum, not a bird's bill. It grows out of the front of the
+          // skull in the animal's own colour and carries the mouth line along
+          // it. Drawn in the hard detail colour and stopped short of the
+          // silhouette — which is where it used to sit — a dolphin's beak read
+          // as a grey ruler someone had laid across its face.
+          final Rect bb = a.bodyBounds;
+          final double x0 = bb.right - bb.width * .24;
+          final double x1 = bb.right + r * .34;
+          final Path p = Path()
+            ..moveTo(x0, my - r * .62)
+            ..quadraticBezierTo(x1 - r * .44, my - r * .34, x1, my - r * .08)
+            ..quadraticBezierTo(
+              x1 + r * .12,
+              my + r * .10,
+              x1 - r * .16,
+              my + r * .18,
+            )
+            ..quadraticBezierTo(x1 - r * .66, my + r * .34, x0, my + r * .36)
+            ..close();
+          canvas.drawPath(
+            p,
+            _volume(_shade(_body, -.02), p.getBounds(), lift: .20),
+          );
+          canvas.drawPath(
+            p,
+            _stroke(_shade(_body, -.32).withValues(alpha: .50), s * .009),
+          );
+          // Mouth line running the length of the beak and turning up at the
+          // corner — the permanent grin a bottlenose is famous for.
+          canvas.drawPath(
+            Path()
+              ..moveTo(x0 - r * .34, my - r * .06)
+              ..quadraticBezierTo(
+                (x0 + x1) * .5,
+                my + r * .20,
+                x1 - r * .16,
+                my + r * .06,
+              ),
+            _stroke(_shade(_body, -.36).withValues(alpha: .55), s * .010),
+          );
+          break;
+        }
         final Path p = Path()
           ..moveTo(f.dx - r * .16, my - r * .08)
           ..quadraticBezierTo(
@@ -3787,6 +4592,53 @@ class CreaturePainter extends CustomPainter {
         }
 
       case SnoutType.longJaw:
+        if (spec.body == BodyShape.finned || spec.body == BodyShape.serpent) {
+          // A jaw, not a muzzle. A shark's gape is a long crescent that runs
+          // back under the eye with a rank of small teeth along it; the pale
+          // rounded snout-pad with a nose dot that every mammal here gets was
+          // giving the great white a puppy's face.
+          final double gx = f.dx + r * .06;
+          final double gy = my + r * .16;
+          final double gw = r * .58;
+          final Path gape = Path()
+            ..moveTo(gx - gw, gy - r * .06)
+            ..quadraticBezierTo(
+              gx - gw * .10,
+              gy + r * .06,
+              gx + gw,
+              gy - r * .16,
+            )
+            ..quadraticBezierTo(
+              gx - gw * .06,
+              gy + r * .40,
+              gx - gw,
+              gy - r * .06,
+            )
+            ..close();
+          canvas.drawPath(gape, _fill(_shade(_detail, -.22)));
+          canvas.drawPath(
+            gape,
+            _stroke(_shade(_detail, -.40).withValues(alpha: .55), s * .008),
+          );
+          // Upper tooth row, clipped so the points stay inside the mouth.
+          canvas.save();
+          canvas.clipPath(gape);
+          for (int i = 0; i < 5; i++) {
+            final double t = (i + .5) / 5;
+            final double x = gx - gw + gw * 2 * t;
+            final double top = gy - r * (.06 + .10 * t);
+            canvas.drawPath(
+              Path()
+                ..moveTo(x - r * .07, top - r * .08)
+                ..lineTo(x + r * .07, top - r * .08)
+                ..lineTo(x, top + r * .15)
+                ..close(),
+              _fill(const Color(0xFFFFF8EC)),
+            );
+          }
+          canvas.restore();
+          break;
+        }
         // A soft rounded muzzle with two small fangs — toothy but friendly.
         final Rect r0 = Rect.fromCenter(
           center: Offset(f.dx, my + r * .12),
@@ -4480,6 +5332,66 @@ class CreaturePainter extends CustomPainter {
     final Rect b = a.bodyBounds;
 
     switch (spec.accent) {
+      case Accent.clamShell:
+        // Two fluted valves gaping apart with the face in the opening. A clam
+        // has no silhouette of its own — take the shell away and what is left
+        // is a pillow with a mouth on it, which is what this used to be.
+        final double gapeTop = a.headBounds.top + a.headBounds.height * .26;
+        final double gapeBot = a.headBounds.bottom - a.headBounds.height * .10;
+
+        void valve(double hingeY, double reach, {required bool up}) {
+          final Rect box = Rect.fromCenter(
+            center: Offset(b.center.dx, hingeY),
+            width: b.width * 1.16,
+            height: reach.abs() * 2,
+          );
+          final Path p = Path()
+            ..moveTo(box.left, hingeY)
+            ..arcTo(box, math.pi, up ? math.pi : -math.pi, false)
+            ..close();
+          canvas.drawPath(p, _volume(_body, box, lift: .16));
+          // Ribs radiating from the hinge, which is what makes it a shell
+          // rather than a bowl.
+          canvas.save();
+          canvas.clipPath(p);
+          for (int i = -3; i <= 3; i++) {
+            final double ang = math.pi / 2 + i * .30;
+            canvas.drawLine(
+              Offset(b.center.dx, hingeY),
+              Offset(
+                b.center.dx + math.cos(ang + (up ? math.pi : 0)) * box.width,
+                hingeY + (up ? -1 : 1) * math.sin(ang) * box.height,
+              ),
+              _stroke(_shade(_detail, -.22).withValues(alpha: .55), s * .010),
+            );
+          }
+          canvas.restore();
+          canvas.drawPath(
+            p,
+            _stroke(_shade(_body, -.32).withValues(alpha: .60), s * .013),
+          );
+        }
+
+        valve(gapeTop, gapeTop - b.top + b.height * .06, up: true);
+        valve(gapeBot, b.bottom - gapeBot + b.height * .04, up: false);
+
+        // The pearl, sitting in the gape under the chin.
+        final Offset pearl = Offset(f.dx + r * .74, gapeBot - r * .16);
+        canvas.drawCircle(
+          pearl,
+          r * .17,
+          _volume(
+            _accent,
+            Rect.fromCircle(center: pearl, radius: r * .17),
+            lift: .30,
+          ),
+        );
+        canvas.drawCircle(
+          Offset(pearl.dx - r * .05, pearl.dy - r * .05),
+          r * .05,
+          _fill(Colors.white.withValues(alpha: .75)),
+        );
+
       case Accent.flower:
         final Offset c = Offset(f.dx + r * 1.02, f.dy - r * .94);
         for (int i = 0; i < 5; i++) {
@@ -4759,6 +5671,33 @@ class CreaturePainter extends CustomPainter {
   }
 
   /// Unit normal to a vector, or a safe default for a zero-length one.
+  /// A ribbon of smoothly changing width laid along an arbitrary spine.
+  ///
+  /// [_taper] can only bend once, which is enough for a horn or a whip but not
+  /// for anything that turns through more than half a circle. A spiral needs
+  /// its width sampled all the way round.
+  static Path _ribbon(List<Offset> spine, double w0, double w1) {
+    final Path p = Path();
+    final List<Offset> outer = <Offset>[];
+    final List<Offset> inner = <Offset>[];
+    for (int i = 0; i < spine.length; i++) {
+      final double t = i / (spine.length - 1);
+      final Offset n =
+          _perp(i == 0 ? spine[1] - spine[0] : spine[i] - spine[i - 1]) *
+          (w0 + (w1 - w0) * t);
+      outer.add(spine[i] + n);
+      inner.add(spine[i] - n);
+    }
+    p.moveTo(outer.first.dx, outer.first.dy);
+    for (final Offset o in outer.skip(1)) {
+      p.lineTo(o.dx, o.dy);
+    }
+    for (final Offset o in inner.reversed) {
+      p.lineTo(o.dx, o.dy);
+    }
+    return p..close();
+  }
+
   static Offset _perp(Offset v) {
     final double len = v.distance;
     if (len < 1e-6) return const Offset(0, 1);
@@ -4798,6 +5737,7 @@ class _Plan {
     required this.headW,
     required this.headH,
     this.headCx = 0,
+    this.bodyCx = 0,
     this.lean = 0,
     this.merged = false,
   });
@@ -4808,6 +5748,10 @@ class _Plan {
   final double topRound;
   final double botRound;
   final double waist;
+
+  /// Whole torso shifted off the tile's centre line. A swimmer needs the room
+  /// behind it for a fluke, so it sits forward rather than dead centre.
+  final double bodyCx;
 
   /// Head centre, as an offset from the body centre line.
   final double headCx;
