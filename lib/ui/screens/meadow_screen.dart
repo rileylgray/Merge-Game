@@ -14,6 +14,7 @@ import '../../state/game_controller.dart';
 import '../dialogs.dart';
 import '../widgets/board_view.dart';
 import '../widgets/hud.dart';
+import '../widgets/tick_builder.dart';
 
 /// The main play surface: sky, board and basket.
 class MeadowScreen extends StatelessWidget {
@@ -30,7 +31,17 @@ class MeadowScreen extends StatelessWidget {
         bottom: false,
         child: Column(
           children: <Widget>[
-            _TopBar(game: game, world: world),
+            // The wallet and the filling basket are the only two things in the
+            // app that genuinely move with the income tick, so they are the
+            // only two that follow it — and each gets a boundary of its own,
+            // or the whole meadow's layer is marked dirty four times a second
+            // on their behalf.
+            RepaintBoundary(
+              child: TickBuilder(
+                builder: (BuildContext context, Widget? _) =>
+                    _TopBar(game: game, world: world),
+              ),
+            ),
             // Hearts land four times a second, and every one of those used to
             // rebuild the whole meadow — every cell, painter and drag target,
             // often mid-drag. The board only cares about its own signature.
@@ -61,7 +72,12 @@ class MeadowScreen extends StatelessWidget {
                 ),
               ),
             ),
-            _BottomBar(game: game, world: world),
+            RepaintBoundary(
+              child: TickBuilder(
+                builder: (BuildContext context, Widget? _) =>
+                    _BottomBar(game: game, world: world),
+              ),
+            ),
           ],
         ),
       ),

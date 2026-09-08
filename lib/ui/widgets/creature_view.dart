@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../../core/stepped_animation.dart';
 import '../../data/accessory.dart';
 import '../../data/creature_spec.dart';
 import '../../render/creature_painter.dart';
@@ -34,7 +35,14 @@ class CreatureView extends StatefulWidget {
 
 class _CreatureViewState extends State<CreatureView>
     with SingleTickerProviderStateMixin {
+  static const Duration _cycle = Duration(seconds: 6);
+
   late final AnimationController _controller;
+
+  /// What the idle is actually driven from. A meadow can hold forty-eight of
+  /// these at once, and the bob travels about a pixel over three seconds —
+  /// there is nothing in it worth a rebuild on every vsync.
+  late final SteppedAnimation _clock;
   late final double _phase;
   late final double _blinkOffset;
 
@@ -44,10 +52,8 @@ class _CreatureViewState extends State<CreatureView>
     final int seed = widget.spec.id.hashCode;
     _phase = (seed % 1000) / 1000 * math.pi * 2;
     _blinkOffset = (seed % 397) / 397;
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 6),
-    );
+    _controller = AnimationController(vsync: this, duration: _cycle);
+    _clock = SteppedAnimation.fps(_controller, cycle: _cycle);
   }
 
   /// The idle is pure decoration, so it is the first thing to go when the
@@ -79,6 +85,7 @@ class _CreatureViewState extends State<CreatureView>
 
   @override
   void dispose() {
+    _clock.dispose();
     _controller.dispose();
     super.dispose();
   }
@@ -103,9 +110,9 @@ class _CreatureViewState extends State<CreatureView>
     // path, gradient and blur sixty times a second, for every friend on the
     // board at once — which is what made dragging feel like wading.
     final Widget bobbing = AnimatedBuilder(
-      animation: _controller,
+      animation: _clock,
       builder: (BuildContext context, Widget? child) {
-        final double t = _controller.value;
+        final double t = _clock.value;
         final double bob = animating ? math.sin(t * math.pi * 2 + _phase) : 0;
         return FractionalTranslation(
           translation: Offset(0, bob * CreaturePainter.bobTravelFor(widget.spec)),

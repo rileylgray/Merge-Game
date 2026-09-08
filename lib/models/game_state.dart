@@ -82,6 +82,11 @@ class BoardState {
     _revision++;
   }
 
+  /// Records a change made to a tile in place — a merge promoting one, a
+  /// mystery basket being unwrapped. Anything cached off [revision] is stale
+  /// until this is called, so an in-place edit must always say so.
+  void touch() => _revision++;
+
   bool get isFull => firstEmpty() == null;
 
   int? firstEmpty() {
@@ -100,11 +105,27 @@ class BoardState {
 
   /// Total hearts per second this meadow produces, before boosts.
   /// A wrapped mystery basket pays nothing until it is opened.
-  double get income => tiles.fold(
-        0,
-        (double sum, BoardTile t) =>
-            t.mystery ? sum : sum + Balance.income(t.tier),
-      );
+  ///
+  /// Cached against [revision]: this is read on every income tick and again by
+  /// every HUD rebuild, and summing five boards of up to forty-eight tiles
+  /// several times a second is a surprising amount of arithmetic and garbage
+  /// for a number that only moves when the meadow does.
+  double get income {
+    if (_incomeAt != _revision) {
+      double sum = 0;
+      final int n = capacity;
+      for (int i = 0; i < n; i++) {
+        final BoardTile? t = _cells[i];
+        if (t != null && !t.mystery) sum += Balance.income(t.tier);
+      }
+      _income = sum;
+      _incomeAt = _revision;
+    }
+    return _income;
+  }
+
+  double _income = 0;
+  int _incomeAt = -1;
 
   Map<String, Object?> toJson() => <String, Object?>{
         'w': worldId,
@@ -220,26 +241,48 @@ class GameState {
   BoardState board(String worldId) =>
       boards[worldId] ??= BoardState.empty(worldId);
 
+  /// Adds [id] to the collection. Returns false if it was already there.
+  bool markDiscovered(String id) => discovered.add(id);
+
+  /// Scanning the collection means a substring and a parse per entry, and by
+  /// the late game that is a hundred and fifty of them — for a number that
+  /// only changes when a new species is found, but that is read on every shop
+  /// row, every meadow card and every basket spawn.
+  ///
+  /// Keyed on the size of [discovered] rather than on a flag set by
+  /// [markDiscovered]: the set is public and species are only ever added, so
+  /// its length is an epoch that cannot be got wrong from the outside.
+  final Map<String, int> _bestByWorld = <String, int>{};
+  int? _bestAnywhere;
+  int _scannedAt = -1;
+
+  void _syncScans() {
+    if (_scannedAt == discovered.length) return;
+    _scannedAt = discovered.length;
+    _bestByWorld.clear();
+    _bestAnywhere = null;
+  }
+
   /// Highest tier ever discovered in [worldId] — progression, not board state.
   int highestTier(String worldId) {
-    int best = 0;
-    for (final String id in discovered) {
-      final int split = id.lastIndexOf('_');
-      if (split <= 0 || id.substring(0, split) != worldId) continue;
-      final int tier = int.tryParse(id.substring(split + 1)) ?? 0;
-      if (tier > best) best = tier;
-    }
-    return best;
+    _syncScans();
+    return _bestByWorld[worldId] ??= _scanBest(worldId);
   }
 
   /// Best tier reached in any meadow. The wardrobe is one wardrobe across the
   /// whole game, so it is priced against this rather than against whichever
   /// meadow the player happens to be standing in.
   int get bestTierAnywhere {
+    _syncScans();
+    return _bestAnywhere ??= _scanBest(null);
+  }
+
+  int _scanBest(String? worldId) {
     int best = 0;
     for (final String id in discovered) {
       final int split = id.lastIndexOf('_');
       if (split <= 0) continue;
+      if (worldId != null && id.substring(0, split) != worldId) continue;
       final int tier = int.tryParse(id.substring(split + 1)) ?? 0;
       if (tier > best) best = tier;
     }
@@ -257,12 +300,18 @@ class GameState {
   bool get basketBoostActive =>
       basketBoostUntilMs > DateTime.now().millisecondsSinceEpoch;
 
-  /// Hearts per second across every meadow, including any active boost.
-  double get totalIncome {
-    final double base = boards.values
-        .fold(0, (double sum, BoardState b) => sum + b.income);
-    return boostActive ? base * Balance.boostMultiplier : base;
+  /// Hearts per second across every meadow, before any boost.
+  double get baseIncome {
+    double sum = 0;
+    for (final BoardState b in boards.values) {
+      sum += b.income;
+    }
+    return sum;
   }
+
+  /// Hearts per second across every meadow, including any active boost.
+  double get totalIncome =>
+      boostActive ? baseIncome * Balance.boostMultiplier : baseIncome;
 
   Map<String, Object?> toJson() => <String, Object?>{
         'v': schemaVersion,

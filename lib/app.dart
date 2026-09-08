@@ -26,9 +26,13 @@ class MergelingsApp extends StatelessWidget {
         ChangeNotifierProvider<GameController>.value(value: game),
         ChangeNotifierProvider<AdsService>.value(value: ads),
       ],
-      child: Consumer<GameController>(
-        builder: (BuildContext context, GameController game, Widget? child) {
-          final String? code = game.state.localeCode;
+      // Selector, not Consumer: the language is the only thing up here that
+      // can change, and a Consumer rebuilt the entire MaterialApp — theme,
+      // localisations, navigator and all — on every notification from the
+      // controller.
+      child: Selector<GameController, String?>(
+        selector: (_, GameController game) => game.state.localeCode,
+        builder: (BuildContext context, String? code, Widget? child) {
           return MaterialApp(
             title: 'Mergelings',
             debugShowCheckedModeBanner: false,

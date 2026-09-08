@@ -13,6 +13,7 @@ import '../accessory_labels.dart';
 import '../dialogs.dart';
 import '../widgets/accessory_icon.dart';
 import '../widgets/creature_view.dart';
+import '../widgets/tick_builder.dart';
 
 /// Spend hearts on creatures and space; spend attention on boosts.
 class ShopScreen extends StatelessWidget {
@@ -20,6 +21,14 @@ class ShopScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Prices here are read against a balance that rises on its own, so the
+    // shop is one of the few places that has to follow the income tick — but
+    // only while the player is looking at it. [TickBuilder] holds the whole
+    // list still the moment the shop is not the visible tab.
+    return TickBuilder(builder: _build);
+  }
+
+  Widget _build(BuildContext context, Widget? _) {
     final GameController game = context.watch<GameController>();
     final L l = L.of(context);
     final int maxTier = Balance.maxShopTier(game.highestTier(game.world.id));

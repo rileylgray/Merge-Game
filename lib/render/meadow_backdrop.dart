@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../core/stepped_animation.dart';
 import '../data/worlds.dart';
 
 /// The scenery behind a meadow.
@@ -25,13 +26,23 @@ class MeadowBackdrop extends StatefulWidget {
 class _MeadowBackdropState extends State<MeadowBackdrop>
     with SingleTickerProviderStateMixin {
   // Long and prime-ish so nothing visibly loops with the creature idles.
+  static const Duration _cycle = Duration(seconds: 23);
+
   late final AnimationController _drift = AnimationController(
     vsync: this,
-    duration: const Duration(seconds: 23),
+    duration: _cycle,
   )..repeat();
+
+  /// The motes cover the whole screen, so every distinct value of this is a
+  /// full-screen layer redrawn and re-uploaded. At the refresh rate that is
+  /// the most expensive thing in the app for the least visible motion: a mote
+  /// crosses the meadow in half a minute.
+  late final SteppedAnimation _driftClock =
+      SteppedAnimation.fps(_drift, cycle: _cycle);
 
   @override
   void dispose() {
+    _driftClock.dispose();
     _drift.dispose();
     super.dispose();
   }
@@ -53,9 +64,9 @@ class _MeadowBackdropState extends State<MeadowBackdrop>
         if (scene.motes != _Motes.none)
           RepaintBoundary(
             child: AnimatedBuilder(
-              animation: _drift,
+              animation: _driftClock,
               builder: (BuildContext context, Widget? _) => CustomPaint(
-                painter: _MotesPainter(widget.world, scene, _drift.value),
+                painter: _MotesPainter(widget.world, scene, _driftClock.value),
                 size: Size.infinite,
                 willChange: true,
               ),

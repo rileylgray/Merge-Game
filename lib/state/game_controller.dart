@@ -69,6 +69,13 @@ class BoardSignature {
       Object.hash(worldId, revision, rows, mergedCell, wardrobe);
 }
 
+/// Fires on the income tick and on nothing else.
+///
+/// See [GameController.ticks].
+class TickNotifier extends ChangeNotifier {
+  void _fire() => notifyListeners();
+}
+
 /// The single source of truth for gameplay.
 ///
 /// Owns the save file, the per-second income tick and every rule about
@@ -90,6 +97,19 @@ class GameController extends ChangeNotifier {
 
   DiscoveryEvent? pendingDiscovery;
   OfflineEarnings? pendingOffline;
+
+  /// Fires four times a second, for hearts arriving and the basket filling.
+  ///
+  /// Kept apart from [notifyListeners] on purpose. Every screen in the app is
+  /// alive at once inside the shell's stack, so a controller-wide notification
+  /// four times a second rebuilt all five of them — the meadow, the collection
+  /// grid, the shop list, the meadow picker and the settings page — for a
+  /// number that only two small widgets are showing. [notifyListeners] now
+  /// means "something actually changed"; this means "the clock moved", and
+  /// only the handful of widgets that display a running number listen to it
+  /// (see `TickBuilder`, which also drops the subscription while its tab is
+  /// off screen).
+  final TickNotifier ticks = TickNotifier();
 
   /// Set when a merge just happened, so the board can play a pop animation.
   ///
@@ -172,7 +192,16 @@ class GameController extends ChangeNotifier {
 
   void _start() {
     _lastTick = DateTime.now();
-    _ticker = Timer.periodic(const Duration(milliseconds: 250), (_) => _tick());
+    _ticker ??=
+        Timer.periodic(const Duration(milliseconds: 250), (_) => _tick());
+  }
+
+  /// Stops the income tick. Nothing is lost: what the meadow earns while it is
+  /// stopped is credited in one go by [_computeOfflineEarnings] on the way
+  /// back in. Running it behind an ad or a locked screen only spent battery.
+  void _stop() {
+    _ticker?.cancel();
+    _ticker = null;
   }
 
   void _tick() {
@@ -181,11 +210,19 @@ class GameController extends ChangeNotifier {
     _lastTick = now;
     if (dt <= 0) return;
 
+    final int before = board.revision;
     _state.hearts += _state.totalIncome * dt;
     _fillBasket(dt);
     _state.lastSeenMs = now.millisecondsSinceEpoch;
-    _storage.save(_state);
-    notifyListeners();
+    // Hearts arriving is not worth a write of its own; the basket dropping a
+    // friend into the meadow is.
+    if (board.revision != before) {
+      _storage.save(_state);
+      notifyListeners();
+    } else {
+      _storage.saveAmbient(_state);
+    }
+    ticks._fire();
   }
 
   /// Advances the basket by [seconds] of filling and lets it spill over.
@@ -224,14 +261,18 @@ class GameController extends ChangeNotifier {
     );
     _fillBasket(away.inMilliseconds / 1000.0);
     if (away < const Duration(minutes: 2)) {
+      // Too short to be worth a welcome-back dialog, but the tick was stopped
+      // for it, so pay it out at the ordinary rate rather than swallowing it.
+      if (away > Duration.zero) {
+        _state.hearts += _state.totalIncome * away.inMilliseconds / 1000.0;
+      }
       _state.lastSeenMs = now.millisecondsSinceEpoch;
       return;
     }
     final Duration capped = away > Balance.offlineCap ? Balance.offlineCap : away;
     // Boosts do not run while the app is closed.
-    final double base = _state.boards.values
-        .fold(0, (double sum, BoardState b) => sum + b.income);
-    final double earned = base * capped.inSeconds * Balance.offlineRate;
+    final double earned =
+        _state.baseIncome * capped.inSeconds * Balance.offlineRate;
     _state.lastSeenMs = now.millisecondsSinceEpoch;
     if (earned >= 1) pendingOffline = OfflineEarnings(earned, away);
   }
@@ -270,12 +311,23 @@ class GameController extends ChangeNotifier {
 
   void _placeTile(int tier, {bool mystery = false}) {
     lastMergedCell = null;
-    final List<int> empty = <int>[];
-    for (int i = 0; i < board.capacity; i++) {
-      if (board.at(i) == null) empty.add(i);
+    final int capacity = board.capacity;
+    int empty = 0;
+    for (int i = 0; i < capacity; i++) {
+      if (board.at(i) == null) empty++;
     }
-    if (empty.isEmpty) return;
-    final int index = empty[_random.nextInt(empty.length)];
+    if (empty == 0) return;
+    // Counted rather than collected: the same choice, without a fresh list of
+    // up to forty-eight boxed ints every time the basket tips over.
+    int nth = _random.nextInt(empty);
+    int index = 0;
+    for (int i = 0; i < capacity; i++) {
+      if (board.at(i) != null) continue;
+      if (nth-- == 0) {
+        index = i;
+        break;
+      }
+    }
     board.set(
       index,
       BoardTile(id: _state.nextTileId++, tier: tier, mystery: mystery),
@@ -313,7 +365,9 @@ class GameController extends ChangeNotifier {
     }
 
     target.tier += 1;
-    board.set(from, null);
+    board
+      ..touch()
+      ..set(from, null);
     lastMergedCell = to;
     _audio.play(Sfx.merge);
     _registerDiscovery(world, target.tier);
@@ -366,6 +420,7 @@ class GameController extends ChangeNotifier {
 
     tile.mystery = false;
     tile.tier = tier;
+    board.touch();
     lastMergedCell = index;
     _audio.play(Sfx.merge);
     _haptic(HapticFeedbackType.heavy);
@@ -376,8 +431,7 @@ class GameController extends ChangeNotifier {
 
   void _registerDiscovery(World w, int tier) {
     final CreatureSpec? spec = w.tryCreatureAt(tier);
-    if (spec == null || _state.discovered.contains(spec.id)) return;
-    _state.discovered.add(spec.id);
+    if (spec == null || !_state.markDiscovered(spec.id)) return;
     final int reward = Balance.discoveryGems(spec.rarity);
     _state.gems += reward;
     pendingDiscovery = DiscoveryEvent(spec, reward);
@@ -617,6 +671,7 @@ class GameController extends ChangeNotifier {
   void playTap() => _audio.play(Sfx.tap);
 
   Future<void> onPaused() async {
+    _stop();
     _audio.duckMusic(MusicInterruption.backgrounded, ducked: true);
     _state.lastSeenMs = DateTime.now().millisecondsSinceEpoch;
     await _storage.flush(_state);
@@ -625,7 +680,7 @@ class GameController extends ChangeNotifier {
   void onResumed() {
     _audio.duckMusic(MusicInterruption.backgrounded, ducked: false);
     _computeOfflineEarnings();
-    _lastTick = DateTime.now();
+    _start();
     notifyListeners();
   }
 
@@ -649,6 +704,7 @@ class GameController extends ChangeNotifier {
   @override
   void dispose() {
     _ticker?.cancel();
+    ticks.dispose();
     unawaited(_audio.dispose());
     super.dispose();
   }

@@ -187,6 +187,24 @@ void main() {
       board.set(board.cells.length - 1, BoardTile(id: 2, tier: 20));
       expect(board.income, closeTo(Balance.income(3), 1e-9));
     });
+
+    // Income is cached against the board's revision, so anything that edits a
+    // tile where it stands has to say so or the meadow keeps paying out at the
+    // old rate — see BoardState.touch.
+    test('income follows a tile promoted in place', () {
+      final BoardState board = BoardState.empty('day');
+      final BoardTile tile = BoardTile(id: 1, tier: 3);
+      board.set(0, tile);
+      expect(board.income, closeTo(Balance.income(3), 1e-9));
+
+      tile.tier = 4;
+      board.touch();
+      expect(board.income, closeTo(Balance.income(4), 1e-9));
+
+      tile.mystery = true;
+      board.touch();
+      expect(board.income, 0);
+    });
   });
 
   group('basket', () {
@@ -365,6 +383,73 @@ void main() {
 
       state.discovered.add('night_12');
       expect(state.isWorldUnlocked(kWorlds[2]), isTrue);
+    });
+  });
+
+  // The income tick runs four times a second for as long as the app is open,
+  // and every screen in the shell is alive at once. Notifying the controller's
+  // listeners from it rebuilt all of them — the meadow, the collection grid,
+  // the shop list and the rest — for a number two widgets are showing. The
+  // split below is the whole reason a long session stays cool, so it is worth
+  // holding on to.
+  group('income tick', () {
+    late GameController game;
+
+    setUp(() async {
+      SharedPreferences.setMockInitialValues(<String, Object>{});
+      game = await GameController.boot();
+      game.setSound(false);
+    });
+
+    tearDown(() => game.dispose());
+
+    test('drips hearts without waking the controller\'s listeners', () async {
+      game.board.set(0, BoardTile(id: 1, tier: 6));
+      final double before = game.hearts;
+
+      int notified = 0;
+      int ticked = 0;
+      void onNotify() => notified++;
+      void onTick() => ticked++;
+      game.addListener(onNotify);
+      game.ticks.addListener(onTick);
+
+      await Future<void>.delayed(const Duration(milliseconds: 700));
+      game.removeListener(onNotify);
+      game.ticks.removeListener(onTick);
+
+      expect(ticked, greaterThan(1), reason: 'the clock should be running');
+      expect(game.hearts, greaterThan(before));
+      expect(notified, 0, reason: 'nothing actually happened on the board');
+    });
+
+    test('stops while the app is in the background and restarts on the way back',
+        () async {
+      int ticked = 0;
+      void onTick() => ticked++;
+      game.ticks.addListener(onTick);
+
+      await game.onPaused();
+      await Future<void>.delayed(const Duration(milliseconds: 400));
+      expect(ticked, 0, reason: 'a backgrounded meadow should cost nothing');
+
+      game.onResumed();
+      await Future<void>.delayed(const Duration(milliseconds: 400));
+      game.ticks.removeListener(onTick);
+      expect(ticked, greaterThan(0));
+    });
+
+    test('a short absence is still paid for', () async {
+      game.board.set(0, BoardTile(id: 1, tier: 8));
+      await game.onPaused();
+      game.state.basketFill = 0;
+      final double before = game.hearts;
+      final double rate = game.state.totalIncome;
+      // As if ten seconds had passed behind a full-screen ad: too short for
+      // the welcome-back offer, and short enough not to tip the basket.
+      game.state.lastSeenMs -= 10000;
+      game.onResumed();
+      expect(game.hearts, closeTo(before + rate * 10, rate));
     });
   });
 

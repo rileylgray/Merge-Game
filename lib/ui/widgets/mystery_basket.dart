@@ -2,6 +2,8 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../../core/stepped_animation.dart';
+
 /// The wrapped basket that sits in a cell until the player taps it.
 ///
 /// It rocks and glows on a loop so it reads as "open me" at a glance, even in
@@ -22,10 +24,17 @@ class MysteryBasketView extends StatefulWidget {
 
 class _MysteryBasketViewState extends State<MysteryBasketView>
     with SingleTickerProviderStateMixin {
+  static const Duration _cycle = Duration(milliseconds: 1600);
+
   late final AnimationController _controller = AnimationController(
     vsync: this,
-    duration: const Duration(milliseconds: 1600),
+    duration: _cycle,
   );
+
+  /// Every frame of this rebuilds three gradients and two blurred shadows, so
+  /// it is sampled rather than followed — see [SteppedAnimation].
+  late final SteppedAnimation _clock =
+      SteppedAnimation.fps(_controller, cycle: _cycle);
 
   /// Held still when the platform asks for less motion. The halo and the
   /// question mark still make the basket the loudest thing in the meadow, so
@@ -56,6 +65,7 @@ class _MysteryBasketViewState extends State<MysteryBasketView>
 
   @override
   void dispose() {
+    _clock.dispose();
     _controller.dispose();
     super.dispose();
   }
@@ -75,9 +85,9 @@ class _MysteryBasketViewState extends State<MysteryBasketView>
         // shared layer they drag the whole meadow through a repaint with them.
         return RepaintBoundary(
           child: AnimatedBuilder(
-            animation: _controller,
+            animation: _clock,
             builder: (BuildContext context, Widget? child) {
-              final double t = _controller.value;
+              final double t = _clock.value;
               final double wobble =
                   animating ? math.sin(t * math.pi * 2) * .08 : 0;
               final double pulse =

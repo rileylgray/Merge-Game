@@ -14,7 +14,14 @@ class AppTheme {
   static const double radius = 22;
   static const double tileRadius = 16;
 
-  static ThemeData light() {
+  /// Built once. `ColorScheme.fromSeed` runs the whole Material tonal-palette
+  /// derivation, and the result never changes, so there is no reason for a
+  /// rebuild to pay for it again.
+  static ThemeData light() => _light ??= _build();
+
+  static ThemeData? _light;
+
+  static ThemeData _build() {
     final ColorScheme scheme = ColorScheme.fromSeed(
       seedColor: brand,
       surface: parchment,

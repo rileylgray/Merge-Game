@@ -15,9 +15,17 @@ import 'shop_screen.dart';
 /// An [IndexedStack] that fades on the way in when the tab changes.
 ///
 /// The stack itself is kept — every screen holds state worth preserving, like
-/// the collection's scroll position and the meadow's running animations — so
-/// the transition is a fade *up* on the arriving screen rather than a
-/// cross-fade between two live trees.
+/// the collection's scroll position and the meadow's scroll offset — so the
+/// transition is a fade *up* on the arriving screen rather than a cross-fade
+/// between two live trees.
+///
+/// Keeping them all alive is not the same as keeping them all running. An
+/// [IndexedStack] paints one child and lays out the rest, but every ticker in
+/// those hidden trees keeps firing: four meadows' worth of idling creatures,
+/// rocking mystery baskets and drifting motes, animating sixty times a second
+/// against a screen nobody can see. Each child gets a [TickerMode] pinned to
+/// whether it is the visible one, which silences all of that — and, through
+/// [TickBuilder], stops the hidden screens rebuilding on the income tick too.
 class _FadeThrough extends StatefulWidget {
   const _FadeThrough({required this.index, required this.children});
 
@@ -59,7 +67,13 @@ class _FadeThroughState extends State<_FadeThrough>
   Widget build(BuildContext context) {
     return FadeTransition(
       opacity: _opacity,
-      child: IndexedStack(index: widget.index, children: widget.children),
+      child: IndexedStack(
+        index: widget.index,
+        children: <Widget>[
+          for (int i = 0; i < widget.children.length; i++)
+            TickerMode(enabled: i == widget.index, child: widget.children[i]),
+        ],
+      ),
     );
   }
 }
@@ -76,6 +90,7 @@ class HomeShell extends StatefulWidget {
 class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
   int _index = 0;
   bool _showingDialog = false;
+  GameController? _game;
 
   @override
   void initState() {
@@ -84,8 +99,30 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     WidgetsBinding.instance.addPostFrameCallback((_) => _drainEvents());
   }
 
+  // Queued celebrations are the shell's only interest in the controller, and
+  // watching it for them meant rebuilding this whole tree — and scheduling a
+  // drain — on every notification. A listener asks the same question without
+  // the rebuild.
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final GameController game = context.read<GameController>();
+    if (identical(game, _game)) return;
+    _game?.removeListener(_onGameChanged);
+    _game = game..addListener(_onGameChanged);
+  }
+
+  void _onGameChanged() {
+    final GameController? game = _game;
+    if (game == null) return;
+    if (game.pendingDiscovery != null || game.pendingOffline != null) {
+      unawaitedDrain();
+    }
+  }
+
   @override
   void dispose() {
+    _game?.removeListener(_onGameChanged);
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -169,10 +206,6 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    // Rebuild when a discovery is queued mid-frame by a merge.
-    context.watch<GameController>();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _drainEvents());
-
     final L l = L.of(context);
 
     return Scaffold(
