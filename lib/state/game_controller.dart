@@ -270,9 +270,13 @@ class GameController extends ChangeNotifier {
       return;
     }
     final Duration capped = away > Balance.offlineCap ? Balance.offlineCap : away;
-    // Boosts do not run while the app is closed.
-    final double earned =
-        _state.baseIncome * capped.inSeconds * Balance.offlineRate;
+    // Boosts do not run while the app is closed, and the payout is held under
+    // a ceiling of its own so a long absence cannot hand over a sink's worth
+    // of hearts in one go.
+    final double earned = math.min(
+      _state.baseIncome * capped.inSeconds * Balance.offlineRate,
+      Balance.offlineHeartCap(_state.bestTierAnywhere),
+    );
     _state.lastSeenMs = now.millisecondsSinceEpoch;
     if (earned >= 1) pendingOffline = OfflineEarnings(earned, away);
   }

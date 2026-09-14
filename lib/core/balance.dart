@@ -160,6 +160,27 @@ class Balance {
   /// Away time earns at a reduced rate; the rewarded video doubles it.
   static const double offlineRate = 0.5;
 
+  /// Ceiling on a single welcome-back payout, in minutes of income.
+  ///
+  /// [offlineCap] bounds the *time* credited, not the hearts. A player with a
+  /// packed board across several meadows earns well above the [meadowIncome]
+  /// approximation, so four hours of it came back as a lump big enough to pay
+  /// off a row and a wardrobe band at once — exactly the runaway the sinks are
+  /// priced in minutes to avoid. This bounds the hearts the same way they are
+  /// priced, so it keeps its shape as the meadows grow instead of going stale
+  /// the way a flat number would.
+  ///
+  /// Pegged to the best tier *anywhere* because offline earnings come from
+  /// every meadow at once. At 45 it bites only once a save is earning more
+  /// than about a board and a half's worth — early and mid meadows still
+  /// collect the full four hours.
+  static const double offlineCapMinutes = 45;
+
+  /// The most hearts one welcome-back may hand over before the rewarded video
+  /// doubles it — so twice this is the true ceiling on the dialog.
+  static double offlineHeartCap(int bestTierAnywhere) =>
+      offlineCapMinutes * 60 * meadowIncome(bestTierAnywhere);
+
   // ---------------------------------------------------------------- boosts
   static const Duration boostDuration = Duration(minutes: 15);
   static const double boostMultiplier = 2.0;
