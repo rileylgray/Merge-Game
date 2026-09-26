@@ -6,7 +6,10 @@ import 'package:flutter/material.dart';
 import '../data/accessory.dart';
 import '../data/creature_spec.dart';
 import 'accessory_painter.dart';
+import 'creature_fit.dart';
 import 'shading.dart';
+
+export 'creature_fit.dart' show CreatureFit;
 
 /// Paints a [CreatureSpec] as fully procedural vector art.
 ///
@@ -28,6 +31,7 @@ class CreaturePainter extends CustomPainter {
     this.bob = 0,
     this.blink = 1,
     this.accessory,
+    this.fitOverride,
   });
 
   final CreatureSpec spec;
@@ -52,21 +56,34 @@ class CreaturePainter extends CustomPainter {
   /// 1 = eyes open, 0 = fully closed.
   final double blink;
 
-  /// Margin left around the art so wings, tails and horns stay inside the tile.
-  static const double kSafe = 0.93;
+  /// Replaces the measured fit — the tool that measures it draws with
+  /// [CreatureFit.raw] to see where the ink really lands.
+  @visibleForTesting
+  final CreatureFit? fitOverride;
 
-  /// The inset this particular creature needs. A stag's antlers and a giraffe's
-  /// ears have to come out of the same box as a snail's shell, so anything that
-  /// grows above the skull buys its room by drawing the whole animal a little
-  /// smaller. Cropped antlers look like a bug; a stag 6% shorter than a lion
-  /// does not.
-  double get _safe => kSafe - _clearanceOf(spec) * .85;
+  /// How far [bob] of 1 lifts the body, in unit layout before the fit scale.
+  static const double kBob = 0.022;
+
+  /// How this creature is sized and placed in its tile.
+  ///
+  /// Measured from the rendered ink rather than guessed from its parts: a
+  /// crab's claws, a dragon's wings and a swordfish's bill all run sideways,
+  /// where no rule of thumb about crests and ears would ever see them, and they
+  /// spilled onto the neighbouring perches on every screen size.
+  static CreatureFit fitFor(CreatureSpec spec) =>
+      kCreatureFits[spec.id] ?? _estimatedFit(spec);
+
+  /// The fallback for a creature added since the table was last generated —
+  /// the old rule of thumb, which gets the tall ones roughly right.
+  static CreatureFit _estimatedFit(CreatureSpec spec) =>
+      CreatureFit(CreatureFit.maxScale - _clearanceOf(spec) * .85, 0);
+
+  CreatureFit get _fit => fitOverride ?? fitFor(spec);
 
   /// How far [bob] of 1 lifts the body, as a fraction of the paint box's short
   /// side. Public so a caller that would rather translate the body itself lands
   /// it in exactly the same place.
-  static double bobTravelFor(CreatureSpec spec) =>
-      0.022 * (kSafe - _clearanceOf(spec) * .85);
+  static double bobTravelFor(CreatureSpec spec) => kBob * fitFor(spec).scale;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -74,9 +91,10 @@ class CreaturePainter extends CustomPainter {
     canvas.save();
     canvas.translate((size.width - s) / 2, (size.height - s) / 2);
 
-    final double safe = _safe;
-    canvas.translate(s * (1 - safe) / 2, s * (1 - safe) / 2);
-    canvas.scale(safe);
+    final CreatureFit fit = _fit;
+    canvas.translate(s * (.5 + fit.dx), s * fit.groundTarget);
+    canvas.scale(fit.scale);
+    canvas.translate(-s * .5, -s * CreatureFit.groundY);
 
     final _Anatomy a = _anatomy(spec, s);
 
@@ -90,7 +108,7 @@ class CreaturePainter extends CustomPainter {
     final _Rng rng = _Rng(spec.id.hashCode);
 
     canvas.save();
-    canvas.translate(0, bob * s * 0.022);
+    canvas.translate(0, bob * s * kBob);
 
     final AccessoryAnchor? worn = accessory == null ? null : _anchor(s, a);
     if (worn != null) AccessoryArt.paintBack(canvas, s, accessory, worn);
@@ -114,6 +132,7 @@ class CreaturePainter extends CustomPainter {
 
     _drawLimbs(canvas, s, a, back: false);
     _drawFrontFins(canvas, s, a);
+    _drawHammer(canvas, s, a);
     _drawSnout(canvas, s, a);
     _drawFace(canvas, s, a);
     _drawFrontCrest(canvas, s, a);
@@ -131,7 +150,8 @@ class CreaturePainter extends CustomPainter {
       old.blink != blink ||
       old.shadow != shadow ||
       old.body != body ||
-      old.accessory != accessory;
+      old.accessory != accessory ||
+      old.fitOverride != fitOverride;
 
   // ------------------------------------------------------------------- coat
 
@@ -429,19 +449,25 @@ class CreaturePainter extends CustomPainter {
         // back to a narrow wrist where the fluke attaches. The symmetric oval
         // this used to be gave every swimmer in the game the same blunt pill
         // for a silhouette and left the tail looking stuck on.
+        //
+        // Chibi proportions on top of that: deep and chubby through the body,
+        // with a head a quarter of the tile across. At adult proportions every
+        // swimmer was a torpedo with two pinprick eyes jammed against its nose,
+        // and a dolphin, a shark and a whale were the same diagram in three
+        // colours.
         return const _Plan(
-          bodyTop: .415,
-          bodyBot: .835,
-          halfW: .340,
+          bodyTop: .335,
+          bodyBot: .87,
+          halfW: .330,
           topRound: 1.05,
           botRound: 1.05,
           waist: .50,
-          headCy: .570,
-          headR: .195,
+          headCy: .565,
+          headR: .250,
           headW: 1.0,
           headH: 1.0,
-          headCx: .135,
-          bodyCx: .085,
+          headCx: .085,
+          bodyCx: .075,
           merged: true,
         );
       case BodyShape.serpent:
@@ -1089,6 +1115,11 @@ class CreaturePainter extends CustomPainter {
   void _drawMassLight(Canvas canvas, double s, _Anatomy a) {
     canvas.save();
     canvas.clipPath(a.silhouette);
+    // Tinted with the coat rather than pure white. White laid over a mid-tone
+    // body greys it out — the whole Dino Meadow looked like it was behind a
+    // sheet of frosted glass — where a lighter shade of the same colour keeps
+    // the chroma and still reads as light.
+    final Color rim = _shade(_body, .40);
     canvas.drawPath(
       a.rim,
       Paint()
@@ -1096,9 +1127,9 @@ class CreaturePainter extends CustomPainter {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: <Color>[
-            Colors.white.withValues(alpha: .50),
-            Colors.white.withValues(alpha: .16),
-            Colors.white.withValues(alpha: 0),
+            rim.withValues(alpha: .80),
+            rim.withValues(alpha: .26),
+            rim.withValues(alpha: 0),
           ],
           stops: const <double>[0, .40, .82],
         ).createShader(a.bounds)
@@ -1795,11 +1826,15 @@ class CreaturePainter extends CustomPainter {
 
       case EarType.longUp:
       case EarType.bunny:
+        // Chibi ears: a little shorter than the skull is wide, and plump. At
+        // the length a real hare carries them they cost the whole animal a
+        // fifth of its size to fit in the tile, and the ears were what the eye
+        // landed on instead of the face.
         pair((double sign) {
           final Rect r = Rect.fromCenter(
-            center: Offset(top.dx + sign * hw * .40, top.dy - hw * .48),
-            width: hw * .44,
-            height: hw * 1.46,
+            center: Offset(top.dx + sign * hw * .40, top.dy - hw * .34),
+            width: hw * .47,
+            height: hw * 1.20,
           );
           canvas.save();
           canvas.translate(r.center.dx, r.center.dy);
@@ -1965,45 +2000,9 @@ class CreaturePainter extends CustomPainter {
         });
 
       case EarType.hammer:
-        // The mallet lies across the top of the skull: a wide horizontal blade
-        // with a rounded lobe at each end, half sunk into the crown so it reads
-        // as part of the head. Stood on end at the front of the snout — where
-        // it went first — the two lobes read as ears.
-        final double hr = a.faceRadius;
-        final double hx = a.faceCenter.dx + hr * .32;
-        final double hy = a.headBounds.top + hr * .26;
-        final double arm = hr * 1.28;
-        final double hh = hr * .32;
-        Rect lobeAt(double dx) => Rect.fromCenter(
-          center: Offset(hx + dx, hy),
-          width: hh * 1.90,
-          height: hh * 2.30,
-        );
-        Path bar = Path.combine(
-          PathOperation.union,
-          Path()..addOval(lobeAt(-arm)),
-          Path()..addOval(lobeAt(arm)),
-        );
-        bar = Path.combine(
-          PathOperation.union,
-          bar,
-          Path()..addRRect(
-            RRect.fromRectAndRadius(
-              Rect.fromLTRB(hx - arm, hy - hh, hx + arm, hy + hh),
-              Radius.circular(hh * .55),
-            ),
-          ),
-        );
-        canvas.drawPath(bar, _volume(_body, bar.getBounds(), lift: .13));
-        canvas.drawPath(bar, _stroke(_line.withValues(alpha: .50), s * .014));
-        // Nostril groove near each tip, on the leading edge of the blade.
-        for (final int sign in const <int>[-1, 1]) {
-          canvas.drawLine(
-            Offset(hx + sign * arm * 1.02, hy + hh * .60),
-            Offset(hx + sign * arm * .62, hy + hh * .84),
-            _stroke(_shade(_body, -.34).withValues(alpha: .40), s * .009),
-          );
-        }
+        // Drawn over the body instead, by _drawHammer: behind it, the far lobe
+        // disappears into the flank.
+        break;
 
       case EarType.frill:
         // A scalloped shield fanning up and out behind the skull. A plain ring
@@ -2048,15 +2047,15 @@ class CreaturePainter extends CustomPainter {
             top.dy + hw * .10,
           );
           final Offset tip = Offset(
-            top.dx + sign * hw * .82,
-            top.dy - hw * .85,
+            top.dx + sign * hw * .80,
+            top.dy - hw * .68,
           );
           canvas.drawPath(
             Path()
               ..moveTo(base.dx, base.dy)
               ..quadraticBezierTo(
-                base.dx + sign * hw * .18,
-                top.dy - hw * .70,
+                base.dx + sign * hw * .16,
+                top.dy - hw * .56,
                 tip.dx,
                 tip.dy,
               ),
@@ -2080,14 +2079,14 @@ class CreaturePainter extends CustomPainter {
           canvas.translate(top.dx + sign * hw * .42, top.dy + hw * .12);
           canvas.rotate(sign * .55);
           final Rect r = Rect.fromCenter(
-            center: Offset(0, -hw * .48),
+            center: Offset(0, -hw * .42),
             width: hw * .36,
-            height: hw * 1.08,
+            height: hw * .94,
           );
           canvas.drawOval(r, _volume(_accent, r));
           canvas.drawLine(
             Offset(0, -hw * .02),
-            Offset(0, -hw * .94),
+            Offset(0, -hw * .82),
             _stroke(_shade(_accent, -.22).withValues(alpha: .55), s * .006),
           );
           canvas.restore();
@@ -2098,14 +2097,14 @@ class CreaturePainter extends CustomPainter {
           final Path p = Path()
             ..moveTo(top.dx + sign * hw * .34, top.dy + hw * .24)
             ..quadraticBezierTo(
-              top.dx + sign * hw * 1.00,
-              top.dy - hw * .30,
+              top.dx + sign * hw * .98,
+              top.dy - hw * .24,
               top.dx + sign * hw * .84,
-              top.dy - hw * .82,
+              top.dy - hw * .66,
             )
             ..quadraticBezierTo(
-              top.dx + sign * hw * .58,
-              top.dy - hw * .22,
+              top.dx + sign * hw * .60,
+              top.dy - hw * .16,
               top.dx + sign * hw * .34,
               top.dy + hw * .24,
             )
@@ -2174,32 +2173,36 @@ class CreaturePainter extends CustomPainter {
     final Offset top = a.headTop;
     switch (spec.crest) {
       case CrestType.antlers:
+        // Fawn antlers — short, forked and a little thick — rather than a
+        // stag's full rack. The rack stood a head and a quarter over the skull
+        // and shrank every antlered friend to the smallest thing on the board,
+        // which is backwards for creatures that sit at the top of the chain.
         for (final int sign in const <int>[-1, 1]) {
-          final Paint p = _stroke(_detail, s * .026);
+          final Paint p = _stroke(_detail, s * .028);
           final Offset base = Offset(
             top.dx + sign * hw * .34,
             top.dy + hw * .16,
           );
           final Offset mid = Offset(
-            base.dx + sign * hw * .34,
-            base.dy - hw * .58,
+            base.dx + sign * hw * .36,
+            base.dy - hw * .42,
           );
           final Offset tip = Offset(
-            mid.dx + sign * hw * .24,
-            mid.dy - hw * .62,
+            mid.dx + sign * hw * .26,
+            mid.dy - hw * .44,
           );
           canvas.drawPath(
             Path()
               ..moveTo(base.dx, base.dy)
               ..quadraticBezierTo(
                 base.dx + sign * hw * .06,
-                base.dy - hw * .34,
+                base.dy - hw * .26,
                 mid.dx,
                 mid.dy,
               )
               ..quadraticBezierTo(
                 mid.dx + sign * hw * .04,
-                mid.dy - hw * .34,
+                mid.dy - hw * .26,
                 tip.dx,
                 tip.dy,
               ),
@@ -2207,32 +2210,32 @@ class CreaturePainter extends CustomPainter {
           );
           canvas.drawPath(
             Path()
-              ..moveTo(mid.dx - sign * hw * .04, mid.dy + hw * .06)
+              ..moveTo(mid.dx - sign * hw * .04, mid.dy + hw * .05)
               ..quadraticBezierTo(
                 mid.dx + sign * hw * .40,
-                mid.dy - hw * .10,
-                mid.dx + sign * hw * .52,
-                mid.dy - hw * .40,
+                mid.dy - hw * .06,
+                mid.dx + sign * hw * .54,
+                mid.dy - hw * .28,
               ),
-            _stroke(_detail, s * .019),
+            _stroke(_detail, s * .021),
           );
           canvas.drawPath(
             Path()
-              ..moveTo(mid.dx + sign * hw * .14, mid.dy - hw * .40)
+              ..moveTo(mid.dx + sign * hw * .12, mid.dy - hw * .30)
               ..quadraticBezierTo(
-                mid.dx - sign * hw * .10,
-                mid.dy - hw * .64,
-                mid.dx - sign * hw * .18,
-                mid.dy - hw * .86,
+                mid.dx - sign * hw * .08,
+                mid.dy - hw * .46,
+                mid.dx - sign * hw * .14,
+                mid.dy - hw * .60,
               ),
-            _stroke(_detail, s * .016),
+            _stroke(_detail, s * .019),
           );
         }
 
       case CrestType.halo:
         canvas.drawOval(
           Rect.fromCenter(
-            center: Offset(top.dx, top.dy - hw * .60),
+            center: Offset(top.dx, top.dy - hw * .40),
             width: hw * 1.30,
             height: hw * .38,
           ),
@@ -2379,7 +2382,7 @@ class CreaturePainter extends CustomPainter {
       case CrestType.mane:
         // Layered rather than one ring of circles: an outer dark rank reads as
         // depth behind a brighter inner one.
-        final double mr = a.faceRadius * 1.58;
+        final double mr = a.faceRadius * 1.46;
         for (int layer = 0; layer < 2; layer++) {
           final double rad = mr * (layer == 0 ? 1.0 : .84);
           final Color c = layer == 0 ? _shade(_accent, -.16) : _accent;
@@ -2410,7 +2413,7 @@ class CreaturePainter extends CustomPainter {
         final List<_Bristle> roots = a.bristles;
         if (roots.isEmpty) break;
         final double span = a.bounds.width;
-        final double len = span * .185;
+        final double len = span * .16;
         final double halfW = span * .044;
         // Rooted a little way inside the outline: a quill that starts exactly
         // on the edge shows a seam where its base meets the body.
@@ -2536,8 +2539,8 @@ class CreaturePainter extends CustomPainter {
             s,
             _taper(
               Offset(top.dx + sign * hw * .68, top.dy + hw * .32),
-              Offset(top.dx + sign * hw * 1.34, top.dy - hw * .24),
-              Offset(top.dx + sign * hw * .84, top.dy - hw * .74),
+              Offset(top.dx + sign * hw * 1.28, top.dy - hw * .18),
+              Offset(top.dx + sign * hw * .86, top.dy - hw * .60),
               hw * .17,
               hw * .05,
             ),
@@ -2558,7 +2561,7 @@ class CreaturePainter extends CustomPainter {
             a.faceCenter.dy + a.faceRadius * .50,
           );
           final Offset tip = Offset(
-            bb.right + bb.width * .44,
+            bb.right + bb.width * .30,
             a.faceCenter.dy - a.faceRadius * .04,
           );
           final Path tusk = _taper(
@@ -2587,18 +2590,20 @@ class CreaturePainter extends CustomPainter {
           canvas.restore();
           break;
         }
+        // A foal's horn: stubby enough that the face, not the spike, is what
+        // the unicorn is remembered by.
         final Path p = Path()
-          ..moveTo(top.dx - hw * .17, top.dy + hw * .12)
+          ..moveTo(top.dx - hw * .18, top.dy + hw * .12)
           ..quadraticBezierTo(
             top.dx - hw * .06,
-            top.dy - hw * .46,
+            top.dy - hw * .36,
             top.dx + hw * .02,
-            top.dy - hw * .94,
+            top.dy - hw * .74,
           )
           ..quadraticBezierTo(
             top.dx + hw * .12,
-            top.dy - hw * .40,
-            top.dx + hw * .19,
+            top.dy - hw * .31,
+            top.dx + hw * .20,
             top.dy + hw * .12,
           )
           ..close();
@@ -2610,14 +2615,14 @@ class CreaturePainter extends CustomPainter {
           canvas.drawPath(
             Path()
               ..moveTo(
-                top.dx - hw * .16 * (1 - t) - hw * .01,
-                top.dy + hw * (.12 - t * 1.02),
+                top.dx - hw * .17 * (1 - t) - hw * .01,
+                top.dy + hw * (.12 - t * .82),
               )
               ..quadraticBezierTo(
                 top.dx,
-                top.dy + hw * (.20 - t * 1.02),
-                top.dx + hw * .17 * (1 - t) + hw * .02,
-                top.dy + hw * (.12 - t * 1.02),
+                top.dy + hw * (.19 - t * .82),
+                top.dx + hw * .18 * (1 - t) + hw * .02,
+                top.dy + hw * (.12 - t * .82),
               ),
             _stroke(_shade(_detail, -.22).withValues(alpha: .60), s * .006),
           );
@@ -2626,7 +2631,7 @@ class CreaturePainter extends CustomPainter {
       case CrestType.flame:
         for (int i = 0; i < 3; i++) {
           final double off = (i - 1) * hw * .34;
-          final double hgt = hw * (1.05 - (i - 1).abs() * .32);
+          final double hgt = hw * (.86 - (i - 1).abs() * .26);
           final Path p = Path()
             ..moveTo(top.dx + off - hw * .20, top.dy + hw * .14)
             ..quadraticBezierTo(
@@ -2726,19 +2731,21 @@ class CreaturePainter extends CustomPainter {
         );
 
       case CrestType.lure:
-        final Offset tip = Offset(top.dx + hw * .55, top.dy - hw * 1.00);
+        // Bowed forward over the face rather than raised overhead, so the
+        // light hangs where the fish can see it — and where the tile has room.
+        final Offset tip = Offset(top.dx + hw * .78, top.dy - hw * .46);
         canvas.drawPath(
           Path()
             ..moveTo(top.dx - hw * .10, top.dy + hw * .10)
             ..quadraticBezierTo(
-              top.dx - hw * .30,
-              top.dy - hw * .90,
+              top.dx + hw * .02,
+              top.dy - hw * .76,
               tip.dx,
               tip.dy,
             ),
           _stroke(_detail, s * .014),
         );
-        canvas.drawCircle(tip, hw * .38, _fill(_accent.withValues(alpha: .28)));
+        canvas.drawCircle(tip, hw * .34, _fill(_accent.withValues(alpha: .28)));
         canvas.drawCircle(tip, hw * .22, _fill(_accent.withValues(alpha: .55)));
         canvas.drawCircle(
           tip,
@@ -2771,7 +2778,7 @@ class CreaturePainter extends CustomPainter {
         for (int i = 0; i < 3; i++) {
           p.quadraticBezierTo(
             top.dx - hw * .20 + i * hw * .30,
-            top.dy - hw * (.85 - i * .16),
+            top.dy - hw * (.70 - i * .13),
             top.dx + hw * (-.05 + i * .30),
             top.dy + hw * .10,
           );
@@ -2960,8 +2967,8 @@ class CreaturePainter extends CustomPainter {
           s,
           _taper(
             Offset(root.dx + b.width * .06, root.dy),
-            Offset(root.dx - b.width * .52, root.dy + b.height * .10),
-            Offset(root.dx - b.width * .46, root.dy - b.height * .62),
+            Offset(root.dx - b.width * .44, root.dy + b.height * .08),
+            Offset(root.dx - b.width * .38, root.dy - b.height * .62),
             b.width * .090,
             b.width * .040,
           ),
@@ -2986,11 +2993,14 @@ class CreaturePainter extends CustomPainter {
         // A prehensile tail wound into a spiral off the base of the abdomen.
         // Anchored on the outside and tightening inward, so the animal reads as
         // gripping something rather than wearing a cinnamon bun.
+        // Wound up level with the hips rather than hanging under them: centred
+        // on the ground line, the bottom half of the spiral sat below the feet
+        // of everything else on the board.
         final Offset c = Offset(
-          b.left - b.width * .12,
-          b.bottom - b.height * .06,
+          b.left - b.width * .08,
+          b.bottom - b.height * .20,
         );
-        final double rOut = b.width * .52;
+        final double rOut = b.width * .46;
         const double turns = 1.55;
         const int steps = 40;
         final List<Offset> spine = <Offset>[
@@ -3133,34 +3143,50 @@ class CreaturePainter extends CustomPainter {
         // Big enough to balance the head. A fluke scaled to a polite flick
         // reads as a wedge someone left behind the animal, and it was half of
         // why the whales and sharks were all silhouette and no shape.
-        final double fw = b.width * (fish ? .46 : .40);
-        final double fu = b.height * (fish ? .60 : .46);
-        final double fd = b.height * (fish ? .56 : .44);
+        //
+        // Rounded lobes on a shallower fork, though. Two long needle points
+        // were the sharpest thing on the board and made every swimmer read as
+        // a dart — a plush fluke says the same thing and says it gently.
+        final double fw = b.width * (fish ? .36 : .40);
+        final double fu = b.height * (fish ? .44 : .46);
+        final double fd = b.height * (fish ? .40 : .44);
         final Path p = Path()
           ..moveTo(r0.dx + b.width * .18, r0.dy)
           // Leading edge of the upper lobe, raked back.
           ..quadraticBezierTo(
-            r0.dx - fw * .40,
-            r0.dy - fu * .38,
-            r0.dx - fw,
-            r0.dy - fu,
-          )
-          // Trailing edge, hollowed into the fork.
-          ..quadraticBezierTo(
-            r0.dx - fw * .40,
-            r0.dy - fu * .26,
             r0.dx - fw * .30,
-            r0.dy + b.height * .02,
+            r0.dy - fu * .30,
+            r0.dx - fw * .86,
+            r0.dy - fu * .96,
+          )
+          // Rounded tip, then the trailing edge into the fork.
+          ..quadraticBezierTo(
+            r0.dx - fw * 1.08,
+            r0.dy - fu * 1.04,
+            r0.dx - fw * .98,
+            r0.dy - fu * .72,
           )
           ..quadraticBezierTo(
-            r0.dx - fw * .40,
-            r0.dy + fd * .26,
+            r0.dx - fw * .58,
+            r0.dy - fu * .20,
+            r0.dx - fw * .46,
+            r0.dy + b.height * .01,
+          )
+          ..quadraticBezierTo(
+            r0.dx - fw * .58,
+            r0.dy + fd * .20,
             r0.dx - fw * .96,
-            r0.dy + fd,
+            r0.dy + fd * .70,
           )
           ..quadraticBezierTo(
-            r0.dx - fw * .38,
-            r0.dy + fd * .36,
+            r0.dx - fw * 1.06,
+            r0.dy + fd * 1.02,
+            r0.dx - fw * .82,
+            r0.dy + fd * .94,
+          )
+          ..quadraticBezierTo(
+            r0.dx - fw * .30,
+            r0.dy + fd * .34,
             r0.dx + b.width * .18,
             r0.dy,
           )
@@ -3171,7 +3197,7 @@ class CreaturePainter extends CustomPainter {
           canvas.drawPath(
             Path()
               ..moveTo(r0.dx + b.width * .02, r0.dy + i * b.height * .04)
-              ..lineTo(r0.dx - fw * .62, r0.dy + i * fu * .58),
+              ..lineTo(r0.dx - fw * .66, r0.dy + i * fu * .52),
             _stroke(_shade(_body, -.30).withValues(alpha: .42), s * .007),
           );
         }
@@ -3226,9 +3252,11 @@ class CreaturePainter extends CustomPainter {
           canvas,
           s,
           _taper(
+            // Flicked up over the back rather than trailed out behind: the same
+            // length reads as a happy tail, and stays inside the tile.
             Offset(root.dx + b.width * .04, root.dy),
-            Offset(root.dx - b.width * .46, root.dy - b.height * .06),
-            Offset(root.dx - b.width * .58, root.dy - b.height * .46),
+            Offset(root.dx - b.width * .40, root.dy - b.height * .04),
+            Offset(root.dx - b.width * .40, root.dy - b.height * .58),
             b.width * .058,
             b.width * .016,
           ),
@@ -3313,8 +3341,8 @@ class CreaturePainter extends CustomPainter {
           s,
           _taper(
             Offset(root.dx + b.width * .08, root.dy + b.height * .04),
-            Offset(root.dx - b.width * .42, root.dy + b.height * .04),
-            Offset(root.dx - b.width * .54, root.dy - b.height * .40),
+            Offset(root.dx - b.width * .36, root.dy + b.height * .04),
+            Offset(root.dx - b.width * .44, root.dy - b.height * .44),
             b.width * .155,
             b.width * .085,
           ),
@@ -3323,15 +3351,15 @@ class CreaturePainter extends CustomPainter {
 
       case TailType.spiked:
         final Offset tip = Offset(
-          root.dx - b.width * .48,
-          root.dy - b.height * .34,
+          root.dx - b.width * .40,
+          root.dy - b.height * .40,
         );
         _part(
           canvas,
           s,
           _taper(
             Offset(root.dx + b.width * .04, root.dy),
-            Offset(root.dx - b.width * .48, root.dy + b.height * .04),
+            Offset(root.dx - b.width * .40, root.dy + b.height * .04),
             tip,
             b.width * .080,
             b.width * .034,
@@ -3433,22 +3461,22 @@ class CreaturePainter extends CustomPainter {
 
       case TailType.club:
         final Offset tip = Offset(
-          root.dx - b.width * .44,
-          root.dy - b.height * .30,
+          root.dx - b.width * .32,
+          root.dy - b.height * .40,
         );
         _part(
           canvas,
           s,
           _taper(
             Offset(root.dx + b.width * .04, root.dy),
-            Offset(root.dx - b.width * .42, root.dy + b.height * .06),
+            Offset(root.dx - b.width * .34, root.dy + b.height * .06),
             tip,
             b.width * .085,
             b.width * .050,
           ),
           _body,
         );
-        final Rect knob = Rect.fromCircle(center: tip, radius: b.width * .16);
+        final Rect knob = Rect.fromCircle(center: tip, radius: b.width * .135);
         canvas.drawOval(knob, _volume(_detail, knob, lift: .16));
         canvas.drawOval(
           knob,
@@ -3578,19 +3606,19 @@ class CreaturePainter extends CustomPainter {
           // tucked in behind a bug body they barely showed at all.
           final Rect up = Rect.fromCenter(
             center: Offset(
-              root.dx + sign * b.width * .62,
-              root.dy - b.height * .26,
+              root.dx + sign * b.width * .56,
+              root.dy - b.height * .30,
             ),
-            width: b.width * .92,
+            width: b.width * .84,
             height: b.height * .82,
           );
           final Rect lo = Rect.fromCenter(
             center: Offset(
-              root.dx + sign * b.width * .50,
-              root.dy + b.height * .38,
+              root.dx + sign * b.width * .46,
+              root.dy + b.height * .36,
             ),
-            width: b.width * .68,
-            height: b.height * .56,
+            width: b.width * .62,
+            height: b.height * .54,
           );
           canvas.drawOval(up, _volume(_accent, up, lift: .16));
           canvas.drawOval(lo, _volume(_belly, lo, lift: .16));
@@ -3685,13 +3713,16 @@ class CreaturePainter extends CustomPainter {
 
         case WingType.dragon:
           final Path p = Path()
+            // Raised high and a little short: perky, and clear of the tile
+            // edge. Spread level they read as a cape and cost the dragon a
+            // fifth of its size to fit.
             ..moveTo(root.dx + sign * b.width * .18, root.dy - b.height * .08)
-            ..lineTo(root.dx + sign * b.width * .74, root.dy - b.height * .42)
+            ..lineTo(root.dx + sign * b.width * .66, root.dy - b.height * .52)
             ..quadraticBezierTo(
-              root.dx + sign * b.width * .70,
-              root.dy + b.height * .04,
-              root.dx + sign * b.width * .52,
-              root.dy + b.height * .26,
+              root.dx + sign * b.width * .66,
+              root.dy - b.height * .02,
+              root.dx + sign * b.width * .50,
+              root.dy + b.height * .24,
             )
             ..quadraticBezierTo(
               root.dx + sign * b.width * .38,
@@ -3706,8 +3737,8 @@ class CreaturePainter extends CustomPainter {
             canvas.drawLine(
               Offset(root.dx + sign * b.width * .22, root.dy - b.height * .06),
               Offset(
-                root.dx + sign * b.width * (.60 - i * .10),
-                root.dy + b.height * (.06 + i * .18),
+                root.dx + sign * b.width * (.56 - i * .08),
+                root.dy + b.height * (.02 + i * .18),
               ),
               _stroke(_shade(_accent, -.26).withValues(alpha: .55), s * .007),
             );
@@ -3800,28 +3831,37 @@ class CreaturePainter extends CustomPainter {
     final double k = scale * (far ? .74 : 1);
     // Well behind the eye and low on the flank. Rooted any further forward the
     // blade sweeps back across the face and reads as a moustache.
+    // A little paddle kept on the flank. On the chubby body plan a blade of
+    // the old length hung below the belly like a kitchen knife.
     final Offset root = Offset(
-      b.left + b.width * (far ? .58 : .50),
-      b.top + b.height * (far ? .60 : .66),
+      b.left + b.width * (far ? .58 : .52),
+      b.top + b.height * (far ? .56 : .60),
     );
-    final double len = b.width * .27 * k;
-    final double drop = b.height * .32 * k;
+    final double len = b.width * .22 * k;
+    final double drop = b.height * .20 * k;
     final Offset tip = Offset(root.dx - len, root.dy + drop);
     // A broad rounded blade, not a spike. Tapered to a point it read as a tusk
     // hanging off the jaw — which is exactly what the clownfish grew.
     final Path p = Path()
-      ..moveTo(root.dx + b.width * .09, root.dy - b.height * .11)
+      ..moveTo(root.dx + b.width * .08, root.dy - b.height * .08)
       ..quadraticBezierTo(
         root.dx - len * .55,
-        root.dy + drop * .16,
-        tip.dx,
-        tip.dy,
+        root.dy + drop * .10,
+        tip.dx + len * .06,
+        tip.dy - drop * .10,
+      )
+      // Rounded end, like the paddle it is.
+      ..quadraticBezierTo(
+        tip.dx - len * .10,
+        tip.dy + drop * .30,
+        tip.dx + len * .24,
+        tip.dy + drop * .16,
       )
       ..quadraticBezierTo(
-        root.dx - len * .20,
-        root.dy + drop * .88,
+        root.dx - len * .10,
+        root.dy + drop * .80,
         root.dx + b.width * .04,
-        root.dy + b.height * .15,
+        root.dy + b.height * .11,
       )
       ..close();
     _part(canvas, s, p, c, width: .008, alpha: .34);
@@ -3849,6 +3889,59 @@ class CreaturePainter extends CustomPainter {
   /// seen from the side, where the near fin has to sit over the flank. Drawn
   /// with the rest of the ears the near fin vanished and only the far one
   /// showed, poking out past the snout like a bow thruster.
+  /// The hammerhead's cephalofoil: centre and half-span, shared with the face
+  /// so the eyes can sit on the tips.
+  static (Offset, double) _hammerAt(_Anatomy a) => (
+    Offset(
+      a.faceCenter.dx + a.faceRadius * .04,
+      a.faceCenter.dy - a.faceRadius * .12,
+    ),
+    a.faceRadius * 1.02,
+  );
+
+  /// A wide bar across the face with a round lobe at each end and an eye in
+  /// each lobe — the one thing everybody knows about a hammerhead. Laid over
+  /// the crown instead, which is where it used to go, it was a grey pipe that
+  /// read as a periscope.
+  void _drawHammer(Canvas canvas, double s, _Anatomy a) {
+    if (spec.ears != EarType.hammer) return;
+    final (Offset c, double arm) = _hammerAt(a);
+    final double hh = a.faceRadius * .34;
+    Rect lobeAt(double dx) => Rect.fromCenter(
+      center: Offset(c.dx + dx, c.dy),
+      width: hh * 2.10,
+      height: hh * 2.10,
+    );
+    Path bar = Path.combine(
+      PathOperation.union,
+      Path()..addOval(lobeAt(-arm)),
+      Path()..addOval(lobeAt(arm)),
+    );
+    bar = Path.combine(
+      PathOperation.union,
+      bar,
+      Path()..addRRect(
+        RRect.fromRectAndRadius(
+          // Slim between the lobes, so the face still shows above and below
+          // it; at full lobe depth the bar read as a visor.
+          Rect.fromLTRB(c.dx - arm, c.dy - hh * .46, c.dx + arm, c.dy + hh * .40),
+          Radius.circular(hh * .40),
+        ),
+      ),
+    );
+    // A soft shadow where the bar crosses the face, so it sits on the head
+    // rather than being pasted over it.
+    canvas.drawPath(
+      bar.shift(Offset(0, hh * .22)),
+      Paint()
+        ..color = _shade(_body, -.30).withValues(alpha: .35)
+        ..maskFilter = ui.MaskFilter.blur(ui.BlurStyle.normal, hh * .20)
+        ..isAntiAlias = true,
+    );
+    canvas.drawPath(bar, _volume(_body, bar.getBounds(), lift: .16));
+    canvas.drawPath(bar, _stroke(_line.withValues(alpha: .50), s * .013));
+  }
+
   void _drawFrontFins(Canvas canvas, double s, _Anatomy a) {
     if (spec.ears != EarType.sideFin || spec.body != BodyShape.finned) return;
     // A lightened body colour rather than the belly: on a clownfish the belly
@@ -3906,15 +3999,30 @@ class CreaturePainter extends CustomPainter {
           }
         case LimbType.tallLegs:
           for (final int sign in const <int>[-1, 1]) {
-            final double x = b.center.dx + sign * b.width * .34;
+            // The far pair peeks out just outside the near one, with a hoof
+            // of its own; a bare stump there read as a leg missing its foot.
+            final double x = b.center.dx + sign * b.width * .33;
+            final Offset foot = Offset(
+              x + sign * b.width * .02,
+              b.bottom + s * .070,
+            );
             _leg(
               canvas,
               s,
               Offset(x, b.bottom - b.height * .26),
-              Offset(x + sign * b.width * .04, b.bottom + s * .058),
-              b.width * .058,
-              b.width * .040,
+              foot,
+              b.width * .090,
+              b.width * .062,
               farC,
+            );
+            final Rect hr = Rect.fromCenter(
+              center: Offset(foot.dx, b.bottom + s * .079),
+              width: b.width * .16,
+              height: s * .034,
+            );
+            canvas.drawRRect(
+              RRect.fromRectAndRadius(hr, Radius.circular(hr.height * .36)),
+              _fill(_shade(_detail, -.18)),
             );
           }
         case LimbType.flippers:
@@ -3957,14 +4065,14 @@ class CreaturePainter extends CustomPainter {
           // have something to belong to.
           for (final int sign in const <int>[-1, 1]) {
             for (int i = 0; i < 3; i++) {
-              final double x = b.center.dx + sign * b.width * (.20 + i * .16);
+              final double x = b.center.dx + sign * b.width * (.18 + i * .12);
               _leg(
                 canvas,
                 s,
                 Offset(x, b.bottom - b.height * .30),
                 Offset(
-                  x + sign * b.width * (.12 + i * .06),
-                  b.bottom + s * .050,
+                  x + sign * b.width * (.08 + i * .05),
+                  b.bottom + s * .045,
                 ),
                 b.width * .038,
                 b.width * .022,
@@ -4018,106 +4126,146 @@ class CreaturePainter extends CustomPainter {
             padColor: _belly,
           );
         }
-        // Forearms angle down and inward to rest against the belly. Held out
-        // horizontally they read as a teddy bear with its arms pinned open.
+        // Forearms tucked in to rest the paws on the tummy. Held out
+        // horizontally they read as a teddy bear with its arms pinned open,
+        // and hung straight down the flank — the previous fix — they were an
+        // outlined strap down each side that read as a suit of armour.
         for (final int sign in const <int>[-1, 1]) {
-          final Offset c = Offset(
-            b.center.dx + sign * b.width * .40,
-            b.center.dy + b.height * .30,
+          final Offset shoulder = Offset(
+            b.center.dx + sign * b.width * .33,
+            b.center.dy - b.height * .06,
           );
-          _leg(
+          final Offset c = Offset(
+            b.center.dx + sign * b.width * .23,
+            b.center.dy + b.height * .22,
+          );
+          final double pr = b.width * .098;
+          _part(
             canvas,
             s,
-            Offset(
-              b.center.dx + sign * b.width * .34,
-              b.center.dy - b.height * .04,
+            _taper(
+              shoulder,
+              Offset.lerp(shoulder, c, .5)! + Offset(sign * b.width * .05, 0),
+              c,
+              b.width * .098,
+              b.width * .086,
             ),
-            c,
-            b.width * .085,
-            b.width * .070,
             legC,
+            width: .008,
+            alpha: .22,
           );
-          canvas.drawCircle(
-            c,
-            b.width * .090,
-            _volume(legC, Rect.fromCircle(center: c, radius: b.width * .090)),
+          final Rect pb = Rect.fromCenter(
+            center: c,
+            width: pr * 2.1,
+            height: pr * 1.8,
           );
-          canvas.drawCircle(
-            c,
-            b.width * .090,
-            _stroke(_shade(legC, -.30).withValues(alpha: .40), s * .008),
+          canvas.drawOval(pb, _volume(legC, pb, lift: .16));
+          canvas.drawOval(
+            pb,
+            _stroke(_shade(legC, -.30).withValues(alpha: .34), s * .008),
           );
-          canvas.drawCircle(
-            Offset(c.dx, c.dy + b.width * .015),
-            b.width * .038,
-            _fill(_belly.withValues(alpha: .85)),
-          );
+          // Two toe creases on the knuckles: the mitten read, which says "paw"
+          // at any size where pads would just be a dot.
+          for (final int t in const <int>[-1, 1]) {
+            canvas.drawLine(
+              Offset(c.dx + t * pr * .34, c.dy + pr * .30),
+              Offset(c.dx + t * pr * .30, c.dy + pr * .74),
+              _stroke(_shade(legC, -.30).withValues(alpha: .50), s * .008),
+            );
+          }
         }
 
       case LimbType.hooves:
         for (final int sign in const <int>[-1, 1]) {
-          final double x = b.center.dx + sign * b.width * .30;
-          _leg(
+          final double x = b.center.dx + sign * b.width * .27;
+          // Chunky little columns. Thin ones with a square hoof on the end
+          // stood the unicorns on four table legs.
+          _part(
             canvas,
             s,
-            Offset(x, b.bottom - b.height * .30),
-            Offset(x, b.bottom + b.height * .01),
-            b.width * .085,
-            b.width * .062,
+            _taper(
+              Offset(x, b.bottom - b.height * .30),
+              Offset(x, b.bottom - b.height * .12),
+              Offset(x, b.bottom + b.height * .01),
+              b.width * .110,
+              b.width * .096,
+            ),
             legC,
+            width: .009,
+            alpha: .26,
           );
           final Rect r = Rect.fromCenter(
-            center: Offset(x, b.bottom + b.height * .04),
-            width: b.width * .16,
-            height: b.height * .11,
+            center: Offset(x, b.bottom + b.height * .045),
+            width: b.width * .23,
+            height: b.height * .12,
           );
+          final RRect hoof = RRect.fromRectAndCorners(
+            r,
+            topLeft: Radius.circular(r.height * .42),
+            topRight: Radius.circular(r.height * .42),
+            bottomLeft: Radius.circular(r.height * .30),
+            bottomRight: Radius.circular(r.height * .30),
+          );
+          canvas.drawRRect(hoof, _volume(_detail, r, lift: .16));
           canvas.drawRRect(
-            RRect.fromRectAndRadius(r, Radius.circular(s * .012)),
-            _volume(_detail, r, lift: .14),
+            hoof,
+            _stroke(_shade(_detail, -.30).withValues(alpha: .40), s * .007),
           );
           // Cloven split.
           canvas.drawLine(
-            Offset(x, r.top + r.height * .3),
-            Offset(x, r.bottom),
-            _stroke(_shade(_detail, -.30).withValues(alpha: .6), s * .007),
+            Offset(x, r.top + r.height * .38),
+            Offset(x, r.bottom - r.height * .08),
+            _stroke(_shade(_detail, -.30).withValues(alpha: .5), s * .007),
           );
         }
 
       case LimbType.tallLegs:
         for (final int sign in const <int>[-1, 1]) {
-          final double x = b.center.dx + sign * b.width * .24;
-          final Offset knee = Offset(
-            x + sign * b.width * .05,
-            b.bottom + s * .030,
-          );
-          // Two segments with a knee, which is what stops long legs reading
-          // as drinking straws.
-          _leg(
+          final double x = b.center.dx + sign * b.width * .20;
+          final Offset hip = Offset(x, b.bottom - b.height * .26);
+          final Offset foot = Offset(x + sign * b.width * .015, b.bottom + s * .082);
+          // Foal-sturdy rather than adult-slender, and planted straight down.
+          // At a real deer's gauge the legs were matchsticks under a round body,
+          // and the knee that was meant to stop them reading as drinking straws
+          // kinked outward instead and gave every fawn bow legs.
+          _part(
             canvas,
             s,
-            Offset(x, b.bottom - b.height * .24),
-            knee,
-            b.width * .075,
-            b.width * .045,
+            _taper(
+              hip,
+              Offset.lerp(hip, foot, .55)! + Offset(sign * b.width * .012, 0),
+              foot,
+              b.width * .100,
+              b.width * .068,
+            ),
             legC,
-          );
-          _leg(
-            canvas,
-            s,
-            knee,
-            Offset(x + sign * b.width * .01, b.bottom + s * .086),
-            b.width * .045,
-            b.width * .034,
-            legC,
+            width: .009,
+            alpha: .28,
           );
           final Rect r = Rect.fromCenter(
-            center: Offset(x + sign * b.width * .01, b.bottom + s * .094),
-            width: s * .066,
-            height: s * .032,
+            center: Offset(foot.dx, b.bottom + s * .092),
+            width: b.width * .19,
+            height: s * .040,
           );
           canvas.drawRRect(
-            RRect.fromRectAndRadius(r, Radius.circular(s * .010)),
-            _volume(_detail, r, lift: .14),
+            RRect.fromRectAndCorners(
+              r,
+              topLeft: Radius.circular(r.height * .40),
+              topRight: Radius.circular(r.height * .40),
+              bottomLeft: Radius.circular(r.height * .30),
+              bottomRight: Radius.circular(r.height * .30),
+            ),
+            _volume(_detail, r, lift: .16),
+          );
+          canvas.drawRRect(
+            RRect.fromRectAndCorners(
+              r,
+              topLeft: Radius.circular(r.height * .40),
+              topRight: Radius.circular(r.height * .40),
+              bottomLeft: Radius.circular(r.height * .30),
+              bottomRight: Radius.circular(r.height * .30),
+            ),
+            _stroke(_shade(_detail, -.30).withValues(alpha: .40), s * .007),
           );
         }
 
@@ -4200,14 +4348,18 @@ class CreaturePainter extends CustomPainter {
       case LimbType.claws:
         // A pincer is two fingers off one arm: a fixed jaw and a thumb, with a
         // gap between them. A solid mitten reads as a boxing glove.
+        //
+        // Held up beside the face in a little cheer rather than flung out to
+        // the sides. Spread wide, the pair spanned half as much again as the
+        // tile, and a crab that fits had to be drawn at two-thirds size.
         for (final int sign in const <int>[-1, 1]) {
           final Offset shoulder = Offset(
             b.center.dx + sign * b.width * .30,
-            b.center.dy + b.height * .06,
+            b.center.dy + b.height * .04,
           );
           final Offset wrist = Offset(
-            b.center.dx + sign * b.width * .72,
-            b.center.dy - b.height * .18,
+            b.center.dx + sign * b.width * .47,
+            b.center.dy - b.height * .34,
           );
           _leg(
             canvas,
@@ -4220,8 +4372,11 @@ class CreaturePainter extends CustomPainter {
           );
           canvas.save();
           canvas.translate(wrist.dx, wrist.dy);
-          canvas.rotate(sign * -.42);
-          final double cw = b.width * .30;
+          // Mirrored rather than counter-rotated, so both claws open the same
+          // way — outward and up — instead of one pointing back at the body.
+          canvas.scale(sign.toDouble(), 1);
+          canvas.rotate(-1.15);
+          final double cw = b.width * .27;
           // Fixed jaw.
           final Path lower = Path()
             ..moveTo(-cw * .30, cw * .10)
@@ -4280,6 +4435,32 @@ class CreaturePainter extends CustomPainter {
 
   /// A nose with a highlight and a soft underside — the single detail that
   /// most sells a snout as three-dimensional.
+  /// A small rounded tooth hanging from [root], [halfW] wide at the gum and
+  /// [len] long. Blunt on purpose: a point is what turns a tooth into a threat.
+  void _toothNub(Canvas canvas, Offset root, double halfW, double len) {
+    final Path p = Path()
+      ..moveTo(root.dx - halfW, root.dy)
+      ..lineTo(root.dx + halfW, root.dy)
+      ..quadraticBezierTo(
+        root.dx + halfW * .90,
+        root.dy + len * .92,
+        root.dx,
+        root.dy + len,
+      )
+      ..quadraticBezierTo(
+        root.dx - halfW * .90,
+        root.dy + len * .92,
+        root.dx - halfW,
+        root.dy,
+      )
+      ..close();
+    canvas.drawPath(p, _fill(const Color(0xFFFFFBF2)));
+    canvas.drawPath(
+      p,
+      _stroke(const Color(0xFFCFC3B4).withValues(alpha: .70), halfW * .30),
+    );
+  }
+
   void _nose(Canvas canvas, double s, Offset c, double w, double h) {
     final Path p = Path()
       ..moveTo(c.dx - w * .5, c.dy - h * .34)
@@ -4375,7 +4556,9 @@ class CreaturePainter extends CustomPainter {
         // carried dead ahead, with the short lower jaw tucked under its root.
         final Rect bb = a.bodyBounds;
         final double x0 = bb.right - bb.width * .16;
-        final double x1 = bb.right + bb.width * .40;
+        // Two-thirds of the adult's proportion, like every other flourish on
+        // the board: at full length the bill ran off the tile.
+        final double x1 = bb.right + bb.width * .27;
         final double by = my - r * .18;
         final Path bill = Path()
           ..moveTo(x0, by - r * .34)
@@ -4597,46 +4780,55 @@ class CreaturePainter extends CustomPainter {
           // back under the eye with a rank of small teeth along it; the pale
           // rounded snout-pad with a nose dot that every mammal here gets was
           // giving the great white a puppy's face.
+          //
+          // Friendly, though: an open grin with a tongue in it and a couple of
+          // rounded nubs on the top lip. A full rank of pointed teeth did say
+          // "shark", but it said it to a toddler at bedtime, and every jawed
+          // swimmer in the game wore the same snarl.
           final double gx = f.dx + r * .06;
           final double gy = my + r * .16;
-          final double gw = r * .58;
+          final double gw = r * .50;
           final Path gape = Path()
             ..moveTo(gx - gw, gy - r * .06)
             ..quadraticBezierTo(
               gx - gw * .10,
-              gy + r * .06,
+              gy + r * .04,
               gx + gw,
-              gy - r * .16,
+              gy - r * .14,
             )
             ..quadraticBezierTo(
-              gx - gw * .06,
-              gy + r * .40,
+              gx - gw * .02,
+              gy + r * .38,
               gx - gw,
               gy - r * .06,
             )
             ..close();
-          canvas.drawPath(gape, _fill(_shade(_detail, -.22)));
-          canvas.drawPath(
-            gape,
-            _stroke(_shade(_detail, -.40).withValues(alpha: .55), s * .008),
-          );
-          // Upper tooth row, clipped so the points stay inside the mouth.
+          final Color mouth = Color.lerp(
+            _shade(_detail, -.34),
+            const Color(0xFF9C3D52),
+            .45,
+          )!;
+          canvas.drawPath(gape, _fill(mouth));
           canvas.save();
           canvas.clipPath(gape);
-          for (int i = 0; i < 5; i++) {
-            final double t = (i + .5) / 5;
+          canvas.drawOval(
+            Rect.fromCenter(
+              center: Offset(gx - gw * .04, gy + r * .22),
+              width: gw * 1.0,
+              height: r * .24,
+            ),
+            _fill(const Color(0xFFF08C9C)),
+          );
+          for (final double t in const <double>[.26, .70]) {
             final double x = gx - gw + gw * 2 * t;
-            final double top = gy - r * (.06 + .10 * t);
-            canvas.drawPath(
-              Path()
-                ..moveTo(x - r * .07, top - r * .08)
-                ..lineTo(x + r * .07, top - r * .08)
-                ..lineTo(x, top + r * .15)
-                ..close(),
-              _fill(const Color(0xFFFFF8EC)),
-            );
+            final double top = gy - r * (.08 + .08 * t);
+            _toothNub(canvas, Offset(x, top), r * .065, r * .13);
           }
           canvas.restore();
+          canvas.drawPath(
+            gape,
+            _stroke(_shade(_detail, -.40).withValues(alpha: .50), s * .008),
+          );
           break;
         }
         // A soft rounded muzzle with two small fangs — toothy but friendly.
@@ -4671,13 +4863,11 @@ class CreaturePainter extends CustomPainter {
           _stroke(_shade(_belly, -.32), r * .07),
         );
         for (final int sign in const <int>[-1, 1]) {
-          canvas.drawPath(
-            Path()
-              ..moveTo(f.dx + sign * r * .18, my + r * .18)
-              ..lineTo(f.dx + sign * r * .30, my + r * .18)
-              ..lineTo(f.dx + sign * r * .24, my + r * .42)
-              ..close(),
-            _fill(Colors.white),
+          _toothNub(
+            canvas,
+            Offset(f.dx + sign * r * .22, my + r * .20),
+            r * .058,
+            r * .14,
           );
         }
         _nose(canvas, s, Offset(f.dx, my - r * .16), r * .26, r * .19);
@@ -4721,14 +4911,14 @@ class CreaturePainter extends CustomPainter {
         );
 
       case SnoutType.fangs:
+        // Two milk-tooth nubs peeking under the smile. Long white spikes made
+        // every bat, vampire and anglerfish look like it had come to bite.
         for (final int sign in const <int>[-1, 1]) {
-          canvas.drawPath(
-            Path()
-              ..moveTo(f.dx + sign * r * .10, my + r * .30)
-              ..lineTo(f.dx + sign * r * .22, my + r * .30)
-              ..lineTo(f.dx + sign * r * .16, my + r * .58)
-              ..close(),
-            _fill(Colors.white),
+          _toothNub(
+            canvas,
+            Offset(f.dx + sign * r * .15, my + r * .31),
+            r * .060,
+            r * .16,
           );
         }
 
@@ -4742,65 +4932,96 @@ class CreaturePainter extends CustomPainter {
         // skull: the eyes get shoved into the top corners and there is no face
         // left between them. A stub of a muzzle carries the same "hoofed, not
         // rabbit" read at a fraction of the size.
+        //
+        // And soft: a broad plush-toy muzzle, wider than it is tall, rather
+        // than the long pale oval hanging off the brow that it used to be.
+        // That shape with two nostril dots in it read as a skull's nose cavity,
+        // and gave the zebra and both unicorns a faintly spooky face.
         final Rect r0 = Rect.fromCenter(
-          center: Offset(f.dx, my + r * .22),
-          width: r * .58,
-          height: r * .86,
+          center: Offset(f.dx, my + r * .16),
+          width: r * .84,
+          height: r * .58,
         );
         canvas.drawOval(
-          r0,
+          r0.shift(Offset(0, r * .04)),
           Paint()
             ..color = _shade(_body, -.26).withValues(alpha: .34)
             ..maskFilter = ui.MaskFilter.blur(
               ui.BlurStyle.normal,
-              r0.height * .12,
+              r0.height * .14,
             )
             ..isAntiAlias = true,
         );
+        // Slightly narrower at the bridge, full and round at the lips.
         final Path p = Path()
-          ..moveTo(f.dx - r * .37, my - r * .32)
-          ..quadraticBezierTo(
-            f.dx - r * .35,
-            my + r * .30,
-            f.dx - r * .23,
-            my + r * .48,
+          ..moveTo(f.dx, r0.top)
+          ..cubicTo(
+            f.dx + r0.width * .34,
+            r0.top,
+            r0.right,
+            r0.top + r0.height * .30,
+            r0.right,
+            r0.center.dy + r0.height * .08,
           )
-          ..quadraticBezierTo(f.dx, my + r * .68, f.dx + r * .23, my + r * .48)
-          ..quadraticBezierTo(
-            f.dx + r * .35,
-            my + r * .30,
-            f.dx + r * .37,
-            my - r * .32,
+          ..cubicTo(
+            r0.right,
+            r0.bottom - r0.height * .04,
+            f.dx + r0.width * .28,
+            r0.bottom,
+            f.dx,
+            r0.bottom,
+          )
+          ..cubicTo(
+            f.dx - r0.width * .28,
+            r0.bottom,
+            r0.left,
+            r0.bottom - r0.height * .04,
+            r0.left,
+            r0.center.dy + r0.height * .08,
+          )
+          ..cubicTo(
+            r0.left,
+            r0.top + r0.height * .30,
+            f.dx - r0.width * .34,
+            r0.top,
+            f.dx,
+            r0.top,
           )
           ..close();
+        canvas.drawPath(p, _volume(_belly, r0, lift: .18, drop: -.12));
         canvas.drawPath(
           p,
-          _volume(_belly, p.getBounds(), lift: .16, drop: -.14),
+          _stroke(_shade(_belly, -.30).withValues(alpha: .34), s * .009),
         );
-        canvas.drawPath(
-          p,
-          _stroke(_shade(_belly, -.30).withValues(alpha: .40), s * .009),
-        );
+        // Nostrils as two soft commas, set wide — close together and round
+        // they were the skull again.
         for (final int sign in const <int>[-1, 1]) {
+          canvas.save();
+          canvas.translate(f.dx + sign * r0.width * .24, r0.center.dy - r * .02);
+          canvas.rotate(sign * .45);
           canvas.drawOval(
             Rect.fromCenter(
-              center: Offset(f.dx + sign * r * .13, my + r * .18),
-              width: r * .12,
-              height: r * .15,
+              center: Offset.zero,
+              width: r * .07,
+              height: r * .12,
             ),
-            _fill(_shade(_belly, -.38)),
+            _fill(_shade(_belly, -.36).withValues(alpha: .80)),
           );
+          canvas.restore();
         }
+        // Smile, in the same double curve every other muzzle gets.
+        final double sy = r0.center.dy + r0.height * .22;
         canvas.drawPath(
           Path()
-            ..moveTo(f.dx - r * .15, my + r * .40)
+            ..moveTo(f.dx - r * .16, sy - r * .02)
+            ..quadraticBezierTo(f.dx - r * .08, sy + r * .10, f.dx, sy + r * .03)
             ..quadraticBezierTo(
-              f.dx,
-              my + r * .50,
-              f.dx + r * .15,
-              my + r * .40,
+              f.dx + r * .08,
+              sy + r * .10,
+              f.dx + r * .16,
+              sy - r * .02,
             ),
-          _stroke(_shade(_belly, -.32).withValues(alpha: .70), s * .010),
+          _stroke(_shade(_belly, -.45).withValues(alpha: .80), s * .011),
         );
 
       case SnoutType.bigNose:
@@ -4859,12 +5080,24 @@ class CreaturePainter extends CustomPainter {
   void _drawFace(Canvas canvas, double s, _Anatomy a) {
     final Offset f = a.faceCenter;
     final double r = a.faceRadius;
-    final double eyeDx = r * .46 * spec.eyeSpacing;
-    final double eyeY = f.dy - r * .06;
+    // Set a little wide and a little low. A big forehead over low, wide-set
+    // eyes is the other half of the baby schema, after sheer eye size.
+    final bool hammer = spec.ears == EarType.hammer;
+    final double eyeDx = hammer ? _hammerAt(a).$2 : r * .48 * spec.eyeSpacing;
+    final double eyeY = hammer ? _hammerAt(a).$1.dy : f.dy - r * .025;
     // Eye size is the single biggest cuteness lever there is — the baby-schema
     // read comes from the eye filling more of the face than an adult's would.
     final double eyeR = r * .248;
-    final Color ink = _shade(_body, -.55);
+    // Derived from the coat so eyes belong to the animal, but always deep.
+    // Darkening a white coat by a fixed step only reaches mid-grey, and the
+    // unicorn, the lamb and every snow creature looked out of two pale
+    // pebbles. Dark eyes carry the catchlights, and the catchlights are what
+    // make a face look alive.
+    final HSLColor inkHsl = HSLColor.fromColor(_shade(_body, -.55));
+    final Color ink = inkHsl
+        .withLightness(math.min(inkHsl.lightness, .19))
+        .withSaturation(inkHsl.saturation.clamp(.22, .50))
+        .toColor();
 
     void eyePair(void Function(Offset c, int sign) draw) {
       draw(Offset(f.dx - eyeDx, eyeY), -1);
@@ -4972,15 +5205,16 @@ class CreaturePainter extends CustomPainter {
 
       case EyeStyle.wide:
         eyePair((Offset c, _) {
-          canvas.drawCircle(c, eyeR * 1.22, _fill(Colors.white));
+          canvas.drawCircle(c, eyeR * 1.16, _fill(Colors.white));
           canvas.drawCircle(
             c,
-            eyeR * 1.22,
-            _stroke(ink.withValues(alpha: .35), s * .008),
+            eyeR * 1.16,
+            _stroke(ink.withValues(alpha: .30), s * .008),
           );
           // A small pupil adrift in a big white is a stare, not a face. Keep
-          // the iris filling most of the eye.
-          glossyEye(Offset(c.dx, c.dy + eyeR * .12), eyeR * .74);
+          // the iris filling most of the eye, with just a rim of white — even
+          // at three quarters it read as startled from across the board.
+          glossyEye(Offset(c.dx, c.dy + eyeR * .10), eyeR * .88);
         });
 
       case EyeStyle.sparkle:
@@ -5028,18 +5262,23 @@ class CreaturePainter extends CustomPainter {
         // An accent pale enough to work as a highlight leaves no eye at all:
         // the golden stag stared out of two blank cream ovals. Floor how light
         // the iris is allowed to be so there is always something to look at.
-        final HSLColor ac = HSLColor.fromColor(_accent);
+        // A grey accent glows grey, which is no glow at all — the gargoyle
+        // had two dead stones for eyes. Anything that washed out burns amber.
+        final Color glowC = HSLColor.fromColor(_accent).saturation < .25
+            ? const Color(0xFFFFB547)
+            : _accent;
+        final HSLColor ac = HSLColor.fromColor(glowC);
         final Color iris = ac.lightness > .62
             ? ac.withLightness(.50).withSaturation(
                 math.max(ac.saturation, .45),
               ).toColor()
-            : _shade(_accent, .06);
+            : _shade(glowC, .06);
         eyePair((Offset c, _) {
           canvas.drawCircle(
             c,
             eyeR * 1.55,
             Paint()
-              ..color = _accent.withValues(alpha: .34)
+              ..color = glowC.withValues(alpha: .34)
               ..maskFilter = ui.MaskFilter.blur(
                 ui.BlurStyle.normal,
                 eyeR * .70,
@@ -5051,13 +5290,13 @@ class CreaturePainter extends CustomPainter {
 
       case EyeStyle.side:
         eyePair((Offset c, int sign) {
-          canvas.drawCircle(c, eyeR * 1.15, _fill(Colors.white));
+          canvas.drawCircle(c, eyeR * 1.12, _fill(Colors.white));
           canvas.drawCircle(
             c,
-            eyeR * 1.15,
+            eyeR * 1.12,
             _stroke(ink.withValues(alpha: .3), s * .008),
           );
-          glossyEye(Offset(c.dx + sign * eyeR * .30, c.dy), eyeR * .70);
+          glossyEye(Offset(c.dx + sign * eyeR * .20, c.dy), eyeR * .84);
         });
 
       case EyeStyle.mono:
@@ -5091,6 +5330,10 @@ class CreaturePainter extends CustomPainter {
     }
 
     if (spec.blush) {
+      // Always rosy, just leaning toward the creature's accent. Taken straight
+      // from the accent, an earthy one gave a trilobite two grey smudges and a
+      // stegosaurus a pair of bruises.
+      final Color rose = Color.lerp(_accent, const Color(0xFFFF7F9E), .62)!;
       for (final int sign in const <int>[-1, 1]) {
         // Feathered rather than a hard flat lozenge, which used to read as a
         // sticker sitting on top of the cheek.
@@ -5104,9 +5347,9 @@ class CreaturePainter extends CustomPainter {
           Paint()
             ..shader = RadialGradient(
               colors: <Color>[
-                _accent.withValues(alpha: .50),
-                _accent.withValues(alpha: .28),
-                _accent.withValues(alpha: 0),
+                rose.withValues(alpha: .52),
+                rose.withValues(alpha: .28),
+                rose.withValues(alpha: 0),
               ],
               stops: const <double>[0, .55, 1],
             ).createShader(r0)
@@ -5158,23 +5401,33 @@ class CreaturePainter extends CustomPainter {
   void _drawBackAccent(Canvas canvas, double s, _Anatomy a) {
     switch (spec.accent) {
       case Accent.cloud:
+        // A flat cushion of puffs the creature sits down into. Round puffs
+        // centred on the ground line hung a whole puff-radius below the feet,
+        // which the fit had to make room for by shrinking the animal on top
+        // of it to half size.
         final Rect b = a.bodyBounds;
-        final Paint p = _fill(Colors.white.withValues(alpha: .55));
-        canvas.drawCircle(
-          Offset(b.left + b.width * .10, b.bottom),
-          b.width * .22,
-          p,
-        );
-        canvas.drawCircle(
-          Offset(b.center.dx, b.bottom + s * .012),
-          b.width * .27,
-          p,
-        );
-        canvas.drawCircle(
-          Offset(b.right - b.width * .10, b.bottom),
-          b.width * .22,
-          p,
-        );
+        final Paint p = _fill(Colors.white.withValues(alpha: .62));
+        for (final (double fx, double r) in const <(double, double)>[
+          (-.44, .15),
+          (.44, .15),
+          (-.22, .20),
+          (.22, .20),
+          (0, .24),
+        ]) {
+          final double w = b.width * r * 2;
+          final double h = w * .56;
+          canvas.drawOval(
+            Rect.fromCenter(
+              center: Offset(
+                b.center.dx + b.width * fx,
+                b.bottom - h * .18 - (r - .15) * s * .20,
+              ),
+              width: w,
+              height: h,
+            ),
+            p,
+          );
+        }
       case Accent.moon:
         canvas.drawPath(
           Path()
@@ -5541,12 +5794,31 @@ class CreaturePainter extends CustomPainter {
         }
 
       case Accent.beardTuft:
-        final Rect r0 = Rect.fromCenter(
-          center: Offset(f.dx, f.dy + r * 1.05),
-          width: r * .60,
-          height: r * .78,
+        // A little teardrop hanging off the chin. The big oval this used to be
+        // started up on the muzzle, painted over the smile and read as one
+        // enormous front tooth.
+        final double top = f.dy + r * .90;
+        final Path p = Path()
+          ..moveTo(f.dx - r * .17, top)
+          ..quadraticBezierTo(f.dx, top - r * .06, f.dx + r * .17, top)
+          ..quadraticBezierTo(
+            f.dx + r * .16,
+            top + r * .30,
+            f.dx + r * .02,
+            top + r * .44,
+          )
+          ..quadraticBezierTo(
+            f.dx - r * .14,
+            top + r * .28,
+            f.dx - r * .17,
+            top,
+          )
+          ..close();
+        canvas.drawPath(p, _volume(_belly, p.getBounds(), lift: .14));
+        canvas.drawPath(
+          p,
+          _stroke(_shade(_belly, -.28).withValues(alpha: .40), s * .008),
         );
-        canvas.drawOval(r0, _volume(_belly, r0, lift: .14));
 
       case Accent.gem:
         final Offset c = Offset(f.dx, f.dy - r * .78);

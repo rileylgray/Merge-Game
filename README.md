@@ -98,6 +98,8 @@ lib/
 
   render/
     creature_painter.dart    Draws a CreatureSpec. The art engine.
+    creature_fit.dart        How each creature is scaled and placed in its tile
+    creature_fits.g.dart     Measured fit per creature (generated)
     accessory_painter.dart   Draws what a creature is wearing
     shading.dart             The ramp/contour/shade vocabulary both share
     perch_painter.dart       The scenery a creature stands on
@@ -130,6 +132,7 @@ assets/
 
 tool/
   generate_icons.dart        Renders launcher icons from the game art
+  measure_creature_fit.dart  Measures every creature's ink and writes the fit table
   generate_sfx.dart          Synthesises the sound effects
   generate_music.dart        Synthesises the seamless background loop
 ```
@@ -150,6 +153,11 @@ to the raw id, so it will never render blank — but it will look wrong.
 
 Each meadow must have exactly 30 creatures with sequential tiers;
 `test/game_rules_test.dart` enforces this.
+
+Any change that alters a silhouette needs `flutter test
+tool/measure_creature_fit.dart` afterwards (see
+[Review the artwork](#review-the-artwork)). A creature missing from the table
+still draws, sized by a rough estimate, but the fit test will flag it.
 
 ### Add an accessory
 
@@ -183,6 +191,26 @@ flutter test test/creature_sheet_preview.dart
 Writes a contact sheet per meadow to `build/art_preview/`. Do this after any
 change to `creature_painter.dart` — a tweak to a shared part type affects every
 creature that uses it, and the sheets are the only practical way to see that.
+
+```bash
+flutter test tool/measure_creature_fit.dart
+```
+
+Then remeasure. Each creature's size in its tile comes from where its ink
+actually lands, not from a guess about its parts: the tool renders every one
+unfitted, and picks the largest scale (capped at `CreatureFit.maxScale`) that
+keeps it inside the box with its feet on the shared ground line, then writes
+`lib/render/creature_fits.g.dart`. `test/creature_fit_test.dart` fails if
+anything overflows its tile, or if a creature has to shrink below 0.76 to fit.
+The fix for the second is in the art: a flourish that has outgrown the tile
+should be trimmed, not paid for by shrinking the animal wearing it.
+
+```bash
+flutter test test/fit_preview.dart --dart-define=IDS=day_30,water_10
+```
+
+Draws creatures unfitted and fitted side by side over their tile outline
+(defaults to the 24 that shrink most).
 
 ```bash
 flutter test test/accessory_sheet_preview.dart
@@ -273,10 +301,12 @@ flutter test
 |---|---|
 | `test/game_rules_test.dart` | Roster integrity, balance curves, wardrobe catalogue, board rules, merge-flag lifetime, save round-trip, number formatting |
 | `test/widget_test.dart` | All 150 creatures paint without throwing; every accessory paints on every body plan |
+| `test/creature_fit_test.dart` | Every creature stays inside its tile at both ends of its idle bob, and none is shrunk below 0.76 to get there |
 | `test/audio_assets_test.dart` | WAV validity, loudness, clipping, click-free edges; music loop length, seam continuity, steady level |
 
 `test/creature_sheet_preview.dart`, `test/accessory_sheet_preview.dart`,
-`test/merge_burst_preview.dart` and `test/ui_preview.dart` are review tools, not
+`test/merge_burst_preview.dart`, `test/fit_preview.dart` and
+`test/ui_preview.dart` are review tools, not
 assertions — they write PNGs for a human to look at, and `flutter test` skips
 them because they are not named `*_test.dart`.
 

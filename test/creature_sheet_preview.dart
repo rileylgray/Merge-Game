@@ -18,10 +18,14 @@ const String kOutDir = String.fromEnvironment(
   defaultValue: 'build/art_preview',
 );
 
+/// Cell size in pixels. The default matches a board tile on a 3x phone; pass
+/// --dart-define=CELL=240 for a sheet big enough to judge faces.
+const int kCell = int.fromEnvironment('CELL', defaultValue: 132);
+
 void main() {
   for (final World world in kWorlds) {
     test('sheet ${world.id}', () async {
-      const double cell = 132;
+      const double cell = kCell * 1.0;
       const int cols = 6;
       final int rows = (world.creatures.length / cols).ceil();
       const double labelH = 16;
