@@ -9,6 +9,7 @@ import 'accessory_painter.dart';
 import 'creature_art/creature_art.dart';
 import 'creature_art/kit.dart';
 import 'creature_fit.dart';
+import 'smooth_stroke_canvas.dart';
 
 export 'creature_fit.dart' show CreatureFit;
 
@@ -119,11 +120,14 @@ class CreaturePainter extends CustomPainter {
       canvas.translate(0, bob * kBob);
       final _Drawn drawn = _drawn(art);
       final AccessoryType? worn = accessory;
+      // Accessories are drawn in the unit layout too, so their outlines need
+      // the same help as the creature's.
+      final Canvas dressed = SmoothStrokeCanvas(canvas);
       // The cape hangs *behind* the creature but is placed from landmarks only
       // the drawing knows, which is one more reason the drawing is recorded.
-      if (worn != null) AccessoryArt.paintBack(canvas, 1, worn, drawn.anchor);
+      if (worn != null) AccessoryArt.paintBack(dressed, 1, worn, drawn.anchor);
       canvas.drawPicture(drawn.picture);
-      if (worn != null) AccessoryArt.paintFront(canvas, 1, worn, drawn.anchor);
+      if (worn != null) AccessoryArt.paintFront(dressed, 1, worn, drawn.anchor);
       canvas.restore();
     }
     canvas.restore();
@@ -149,7 +153,13 @@ class CreaturePainter extends CustomPainter {
     // recording may still be referenced by a layer not yet composited.
     if (_recordings.length > 900) _recordings.clear();
     final ui.PictureRecorder rec = ui.PictureRecorder();
-    final Pen pen = Pen(Canvas(rec), blink: lid / 10, seed: _seed(spec.id));
+    // The art is drawn in a unit square, which Impeller would stroke as
+    // polygons; see SmoothStrokeCanvas.
+    final Pen pen = Pen(
+      SmoothStrokeCanvas(Canvas(rec)),
+      blink: lid / 10,
+      seed: _seed(spec.id),
+    );
     art.draw(pen);
     return _recordings[key] = _Drawn(rec.endRecording(), pen.anchor());
   }

@@ -50,6 +50,16 @@ are fused into one silhouette with `unite(...)` so no outline runs across the
 joins, and legs go in *behind* the body so they grow out of it rather than
 being stuck on.
 
+The art is drawn in a unit square and scaled up to its tile. Impeller, the
+renderer on Android and iOS, flattens a stroked curve as though one unit of
+its path were one pixel, whatever the canvas is scaled by. Left alone, every
+outline would come out as a polygon. `SmoothStrokeCanvas` sits between the
+art and the canvas and draws stroked paths and rounded rects 1024× larger
+under a matching 1/1024 scale, which looks the same but keeps the curves
+smooth. Skia, which `flutter test` uses, never had the problem, so check art
+changes under Impeller as shown in
+[Review the artwork](#review-the-artwork).
+
 ### All sound is generated in code
 
 The six sound cues are synthesised as 16-bit PCM WAV by `tool/generate_sfx.dart`
@@ -106,6 +116,7 @@ lib/
 
   render/
     creature_painter.dart    Paints a creature: fit, shadow, idle, accessories
+    smooth_stroke_canvas.dart Keeps unit-layout outlines smooth on Impeller
     creature_art/
       kit.dart               The drawing vocabulary: parts, eyes, shapes
       parts.dart             Shared anatomy: bodies, legs, ears, muzzles
@@ -214,6 +225,9 @@ flutter test test/creature_sheet_preview.dart
 Writes a contact sheet per meadow to `build/art_preview/`. Do this after any
 change to the kit or the shared parts — a tweak there affects every creature
 that uses it, and the sheets are the only practical way to see that.
+
+Every preview here renders with Skia by default. Add `--enable-impeller` to any
+of them to see the art as a phone draws it.
 
 ```bash
 flutter test test/art_dev_preview.dart --dart-define=WORLD=water
@@ -347,6 +361,7 @@ flutter test
 | `test/game_rules_test.dart` | Roster integrity, balance curves, wardrobe catalogue, board rules, merge-flag lifetime, save round-trip, number formatting |
 | `test/widget_test.dart` | All 150 creatures paint without throwing and each has its own artwork; every accessory paints on every creature |
 | `test/creature_fit_test.dart` | Every creature stays inside its tile at both ends of its idle bob, and none is shrunk below 0.76 to get there |
+| `test/smooth_stroke_canvas_test.dart` | Stroked curves, ovals and rounded rects are drawn enlarged so Impeller keeps them smooth, and every accessory on a creature is drawn that way |
 | `test/audio_assets_test.dart` | WAV validity, loudness, clipping, click-free edges; music loop length, seam continuity, steady level |
 
 `test/creature_sheet_preview.dart`, `test/art_dev_preview.dart`,

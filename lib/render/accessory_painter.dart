@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../data/accessory.dart';
 import 'shading.dart';
+import 'smooth_stroke_canvas.dart';
 
 /// Where on a creature an accessory may hang itself.
 ///
@@ -137,8 +138,14 @@ class AccessoryArt {
     canvas.translate(s / 2, s / 2);
     canvas.scale(zoom);
     canvas.translate(-focus.center.dx * s, -focus.center.dy * s);
-    paintBack(canvas, s, type, AccessoryAnchor.preview(s));
-    paintFront(canvas, s, type, AccessoryAnchor.preview(s));
+    // Drawn in logical pixels and zoomed, so one unit can span several device
+    // pixels; see SmoothStrokeCanvas.
+    final Canvas smooth = SmoothStrokeCanvas(
+      canvas,
+      enlarge: SmoothStrokeCanvas.logical * zoom,
+    );
+    paintBack(smooth, s, type, AccessoryAnchor.preview(s));
+    paintFront(smooth, s, type, AccessoryAnchor.preview(s));
     canvas.restore();
   }
 
