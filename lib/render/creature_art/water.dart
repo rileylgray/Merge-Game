@@ -104,8 +104,8 @@ void _krill(Pen p) {
   for (final double d in <double>[0, .035]) {
     p.tube(
       curve(<Offset>[
-        pt(.78, .44),
-        pt(.86 + d, .32),
+        pt(.78, .43),
+        pt(.86 + d, .31),
         pt(.90 + d * 1.5, .20),
         pt(.94 + d, .14),
       ]),
@@ -113,55 +113,63 @@ void _krill(Pen p) {
       stripe,
     );
   }
-  for (double x = .34; x < .62; x += .055) {
+  for (double x = .32; x < .62; x += .055) {
     p.tube(
-      curve(<Offset>[pt(x, .72), pt(x - .01, .80), pt(x - .03, .845)]),
+      curve(<Offset>[pt(x, .72), pt(x - .01, .80), pt(x - .03, .85)]),
       .012,
       stripe,
     );
   }
   for (final double a in <double>[-.5, 0, .5]) {
     p.part(
-      turn(leaf(pt(.20, .66), pt(.08, .66), .06), pt(.20, .66), a),
+      turn(leaf(pt(.19, .66), pt(.07, .66), .06), pt(.19, .66), a),
       stripe,
       depth: .4,
     );
   }
-  // Tail and head in one piece, so the head grows out of the body.
-  final Path animal = union(
-    taper(
-      <Offset>[pt(.19, .66), pt(.34, .72), pt(.50, .70), pt(.64, .60)],
-      <double>[.035, .065, .085, .11],
-    ),
-    circle(.70, .53, .15),
-  );
+  // One plump, gently bent body whose front end is the head.
+  final Path krill = blob(<Offset>[
+    pt(.86, .52),
+    pt(.79, .38),
+    pt(.64, .40),
+    pt(.47, .52),
+    pt(.31, .59),
+    pt(.18, .635),
+    pt(.18, .685),
+    pt(.32, .755),
+    pt(.48, .765),
+    pt(.62, .72),
+    pt(.72, .68),
+    pt(.82, .63),
+  ]);
   p.part(
-    animal,
+    krill,
     body,
     shine: 1,
     marks: () {
-      for (double x = .30; x < .58; x += .065) {
+      // Segment lines down the tail only, clear of the head.
+      for (double x = .26; x < .54; x += .065) {
         p.line(
           Path()
-            ..moveTo(x, .60)
-            ..lineTo(x + .015, .80),
+            ..moveTo(x, .52)
+            ..lineTo(x + .02, .80),
           width: .012,
           color: stripe,
         );
       }
     },
   );
-  for (final Offset c in <Offset>[pt(.36, .73), pt(.47, .735), pt(.57, .70)]) {
+  for (final Offset c in <Offset>[pt(.34, .72), pt(.45, .735), pt(.55, .72)]) {
     p.glow(c, .03, glow, alpha: .9);
     p.flat(circle(c.dx, c.dy, .009), Kit.white);
   }
-  p.eyes(.71, .52, .062, .046, iris: const Color(0xFF3A7ABA));
-  p.cheeks(.71, .58, .1, .03);
-  p.smile(pt(.71, .585), .02);
+  p.eyes(.715, .52, .062, .046, iris: const Color(0xFF3A7ABA));
+  p.cheeks(.715, .58, .1, .03);
+  p.smile(pt(.715, .585), .02);
 
-  p.head(const Rect.fromLTRB(.55, .38, .85, .68), hatLift: .02);
-  p.torso(const Rect.fromLTRB(.16, .58, .64, .80));
-  p.collar(pt(.64, .67), .1);
+  p.head(const Rect.fromLTRB(.57, .38, .86, .68), hatLift: .02);
+  p.torso(const Rect.fromLTRB(.18, .52, .64, .77));
+  p.collar(pt(.6, .70), .1);
 }
 
 // ---------------------------------------------------------------- 2 sea snail
@@ -338,17 +346,17 @@ void _shrimp(Pen p) {
     p.tube(
       curve(<Offset>[
         pt(.78, .42),
-        pt(.84 + d, .26),
-        pt(.80 + d * 2, .12),
-        pt(.70 + d * 2, .07),
+        pt(.86 + d, .28),
+        pt(.84 + d * 2, .14),
+        pt(.74 + d * 2, .08),
       ]),
       .009,
       body,
     );
   }
-  for (final double x in <double>[.40, .47, .54]) {
+  for (final double x in <double>[.38, .45, .52]) {
     p.tube(
-      curve(<Offset>[pt(x, .60), pt(x - .015, .70), pt(x - .03, .74)]),
+      curve(<Offset>[pt(x, .60), pt(x - .015, .70), pt(x - .03, .75)]),
       .012,
       body,
       line: p.lw * .6,
@@ -356,56 +364,63 @@ void _shrimp(Pen p) {
   }
   for (final double a in <double>[-.6, 0, .6]) {
     p.part(
-      turn(leaf(pt(.32, .84), pt(.20, .88), .07), pt(.32, .84), a),
+      turn(leaf(pt(.33, .86), pt(.21, .89), .07), pt(.33, .86), a),
       body,
       depth: .4,
     );
   }
-  // A curled tail, banded segment by segment.
-  // The curled tail flows straight into the head — one animal, no seam.
-  final Path tail = union(
-    taper(
-      <Offset>[
-        pt(.34, .83),
-        pt(.22, .72),
-        pt(.24, .56),
-        pt(.38, .47),
-        pt(.58, .49),
-      ],
-      <double>[.035, .06, .085, .1, .12],
-    ),
-    circle(.68, .52, .15),
-  );
+  p.part(leaf(pt(.80, .44), pt(.92, .38), .04), body, depth: .4);
+  // One plump curl whose front end is the head: no neck, no seam.
+  final Path shrimp = blob(<Offset>[
+    pt(.86, .52),
+    pt(.80, .39),
+    pt(.66, .34),
+    pt(.48, .34),
+    pt(.30, .39),
+    pt(.18, .50),
+    pt(.14, .65),
+    pt(.20, .79),
+    pt(.33, .885),
+    pt(.37, .82),
+    pt(.32, .74),
+    pt(.31, .64),
+    pt(.37, .565),
+    pt(.48, .545),
+    pt(.58, .60),
+    pt(.70, .66),
+    pt(.81, .63),
+  ]);
   p.part(
-    tail,
+    shrimp,
     body,
     shine: 1,
     marks: () {
-      p.flat(oval(.70, .62, .1, .05), band);
+      p.flat(oval(.72, .63, .1, .04), band);
+      // Shell bands down the curled tail only, well clear of the head.
       for (final List<Offset> b in <List<Offset>>[
-        <Offset>[pt(.12, .70), pt(.32, .70)],
-        <Offset>[pt(.14, .58), pt(.34, .62)],
-        <Offset>[pt(.26, .42), pt(.40, .56)],
-        <Offset>[pt(.44, .38), pt(.48, .58)],
+        <Offset>[pt(.24, .86), pt(.38, .78)],
+        <Offset>[pt(.12, .76), pt(.34, .70)],
+        <Offset>[pt(.10, .60), pt(.33, .62)],
+        <Offset>[pt(.18, .42), pt(.38, .57)],
+        <Offset>[pt(.36, .32), pt(.46, .55)],
       ]) {
         p.line(
           Path()
             ..moveTo(b[0].dx, b[0].dy)
             ..lineTo(b[1].dx, b[1].dy),
-          width: .03,
+          width: .028,
           color: band,
         );
       }
     },
   );
-  p.part(leaf(pt(.76, .42), pt(.90, .36), .04), body, depth: .4);
-  p.eyes(.69, .51, .062, .046, iris: const Color(0xFF8A3A2A));
-  p.cheeks(.69, .57, .1, .03);
-  p.smile(pt(.69, .575), .02);
+  p.eyes(.71, .49, .062, .046, iris: const Color(0xFF8A3A2A));
+  p.cheeks(.71, .55, .1, .03);
+  p.smile(pt(.71, .555), .02);
 
-  p.head(const Rect.fromLTRB(.53, .37, .83, .67), hatLift: .02);
-  p.torso(const Rect.fromLTRB(.17, .40, .62, .87));
-  p.collar(pt(.6, .66), .1);
+  p.head(const Rect.fromLTRB(.56, .34, .86, .66), hatLift: .02);
+  p.torso(const Rect.fromLTRB(.14, .34, .62, .885));
+  p.collar(pt(.6, .64), .1);
 }
 
 // ----------------------------------------------------------------- 5 seahorse

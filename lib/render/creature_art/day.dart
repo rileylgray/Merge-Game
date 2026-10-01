@@ -122,15 +122,17 @@ void _bee(Pen p) {
   const Color wing = Color(0xEBEAF7FF);
   p.ink = const Color(0xFF4A2E1C);
 
+  // Wings on the back, peeking out either side of the body's upper half —
+  // not up on top of the head, where they read as ears.
   for (final double k in sides) {
     p.part(
-      turn(oval(.5 + k * .21, .36, .14, .095), pt(.5 + k * .21, .36), k * .55),
+      turn(oval(.5 + k * .27, .47, .14, .09), pt(.5 + k * .27, .47), k * .4),
       wing,
       depth: .5,
       shine: .8,
     );
     p.part(
-      turn(oval(.5 + k * .27, .48, .09, .06), pt(.5 + k * .27, .48), k * .25),
+      turn(oval(.5 + k * .3, .58, .09, .06), pt(.5 + k * .3, .58), k * .15),
       wing,
       depth: .5,
     );

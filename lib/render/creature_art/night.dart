@@ -52,9 +52,10 @@ void _firefly(Pen p) {
   p.ink = const Color(0xFF221C3A);
 
   p.glow(pt(.5, .71), .34, lamp, alpha: .5);
+  // Wings fold out from the back, where the head meets the lantern.
   for (final double k in sides) {
     p.part(
-      turn(oval(.5 + k * .2, .47, .15, .085), pt(.5 + k * .2, .47), k * .45),
+      turn(oval(.5 + k * .23, .62, .14, .075), pt(.5 + k * .23, .62), k * .3),
       wing,
       depth: .4,
       shine: .6,
@@ -63,65 +64,66 @@ void _firefly(Pen p) {
   for (final double k in sides) {
     p.tube(
       curve(<Offset>[
-        pt(.5 + k * .06, .30),
-        pt(.5 + k * .1, .19),
-        pt(.5 + k * .17, .15),
+        pt(.5 + k * .06, .36),
+        pt(.5 + k * .1, .25),
+        pt(.5 + k * .17, .21),
       ]),
       .014,
       body,
     );
-    p.part(circle(.5 + k * .17, .15, .026), lamp, depth: 0);
+    p.part(circle(.5 + k * .17, .21, .026), lamp, depth: 0);
   }
   for (final double k in sides) {
     p.tube(
       curve(<Offset>[
-        pt(.5 + k * .14, .78),
-        pt(.5 + k * .19, .84),
-        pt(.5 + k * .17, .89),
+        pt(.5 + k * .14, .79),
+        pt(.5 + k * .19, .85),
+        pt(.5 + k * .17, .895),
       ]),
       .018,
       body,
     );
   }
-  final Path tail = oval(.5, .72, .19, .165);
+  final Path tail = oval(.5, .705, .2, .175);
   p.part(
     tail,
     lamp,
     shine: 1,
     marks: () {
       p.line(
-        curve(<Offset>[pt(.33, .70), pt(.5, .74), pt(.67, .70)]),
+        curve(<Offset>[pt(.32, .73), pt(.5, .77), pt(.68, .73)]),
         width: .012,
         color: const Color(0xFFF2D24E),
       );
       p.line(
-        curve(<Offset>[pt(.36, .79), pt(.5, .83), pt(.64, .79)]),
+        curve(<Offset>[pt(.36, .81), pt(.5, .85), pt(.64, .81)]),
         width: .012,
         color: const Color(0xFFF2D24E),
       );
     },
   );
-  final Path head = oval(.5, .45, .2, .17);
+  // The head sits down into the lantern rather than perched on top of it.
+  final Path head = oval(.5, .50, .2, .165);
   p.part(
     head,
     body,
     shine: .8,
-    marks: () => p.flat(oval(.5, .30, .2, .09), cap),
+    marks: () => p.flat(oval(.5, .35, .2, .09), cap),
   );
   p.eyes(
     .5,
-    .45,
+    .50,
     .08,
     .045,
     rim: const Color(0xFFFFFBF0),
     iris: const Color(0xFF7A9AFF),
   );
-  p.cheeks(.5, .515, .14, .032, alpha: .8);
-  p.smile(pt(.5, .515), .022, color: const Color(0xFFFFC2CF));
+  p.cheeks(.5, .565, .14, .032, alpha: .8);
+  p.smile(pt(.5, .565), .022, color: const Color(0xFFFFC2CF));
 
-  p.head(const Rect.fromLTRB(.30, .28, .70, .62));
-  p.torso(const Rect.fromLTRB(.31, .555, .69, .885));
-  p.collar(pt(.5, .61), .15);
+  p.head(const Rect.fromLTRB(.30, .335, .70, .665));
+  p.torso(const Rect.fromLTRB(.30, .53, .70, .88));
+  p.collar(pt(.5, .66), .15);
 }
 
 // -------------------------------------------------------------------- 2 moth
@@ -276,7 +278,20 @@ void _glowworm(Pen p) {
     );
     p.part(circle(.74 + k * .1, .28, .022), lamp, depth: 0);
   }
-  p.part(circle(.70, .55, .16), body, shine: 1);
+  p.tube(
+    Path()
+      ..moveTo(.62, .75)
+      ..lineTo(.615, .893),
+    .016,
+    darker(body, .1),
+  );
+  // The head grows out of a front segment, so it is joined on, not perched.
+  p.part(
+    union(circle(.70, .55, .16), circle(.635, .67, .105)),
+    body,
+    shine: 1,
+    marks: () => p.flat(circle(.63, .73, .02), lamp.withValues(alpha: .9)),
+  );
   p.eyes(.70, .54, .065, .045, iris: const Color(0xFF3A9A80));
   p.cheeks(.70, .6, .1, .032);
   p.smile(pt(.70, .605), .022);
