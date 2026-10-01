@@ -2,7 +2,7 @@
 //
 // Run with:  flutter test test/accessory_sheet_preview.dart
 // Writes one PNG of every accessory as a shop swatch, and one of a spread of
-// body plans wearing each item, so fit can be reviewed. Not part of the app.
+// creatures wearing each item, so fit can be reviewed. Not part of the app.
 import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
@@ -20,8 +20,15 @@ const String kOutDir = String.fromEnvironment(
   defaultValue: 'build/art_preview',
 );
 
-/// A spread of body plans, horn loads and head sizes to fit hats against.
-const List<String> kModels = <String>[
+/// Comma-separated creature ids to dress instead of the default spread.
+const String kIds = String.fromEnvironment('IDS');
+
+/// A spread of shapes, horn loads and head sizes to fit hats against.
+List<String> get kModels => kIds.isEmpty
+    ? kDefaultModels
+    : kIds.split(',').map((String s) => s.trim()).toList();
+
+const List<String> kDefaultModels = <String>[
   'day_01',
   'day_13',
   'day_24',

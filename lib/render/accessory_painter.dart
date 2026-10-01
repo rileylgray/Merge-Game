@@ -7,8 +7,8 @@ import 'shading.dart';
 
 /// Where on a creature an accessory may hang itself.
 ///
-/// The creature painter builds one of these from its own anatomy so accessory
-/// art never has to know anything about body plans; the shop icons build a
+/// Each creature's drawing records one of these as it goes, so accessory art
+/// never has to know anything about shapes; the shop icons build a
 /// synthetic one so the same drawing code renders an item on its own.
 class AccessoryAnchor {
   const AccessoryAnchor({
@@ -75,6 +75,12 @@ class AccessoryArt {
   static const Color _leafGreen = Color(0xFF7FC97F);
   static const Color _petalWhite = Color(0xFFFFF6FA);
   static const Color _petalPink = Color(0xFFFFB3C7);
+
+  /// The outline every worn item shares with the creatures themselves, so a
+  /// hat reads as part of the same sticker rather than a cut-out laid on top.
+  static const Color _ink = Color(0xFF2E2433);
+
+  static Paint _outline(double s) => strokeOf(_ink, s * .016);
 
   /// Layer drawn before the body, for anything that hangs behind it.
   static void paintBack(
@@ -189,6 +195,10 @@ class AccessoryArt {
         RRect.fromRectAndRadius(crown, Radius.circular(hw * .12)),
         volumeOf(_hatBlack, crown, lift: .16, drop: -.10),
       );
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(crown, Radius.circular(hw * .12)),
+        _outline(s),
+      );
       // Band first, then the brim over it, so the ribbon tucks under the rim.
       final Rect band = Rect.fromLTRB(
         crown.left,
@@ -198,10 +208,7 @@ class AccessoryArt {
       );
       canvas.drawRect(band, volumeOf(_ribbonRed, band, lift: .14));
       canvas.drawOval(brim, volumeOf(_hatBlack, brim, lift: .20, drop: -.16));
-      canvas.drawOval(
-        brim,
-        strokeOf(shade(_hatBlack, -.20).withValues(alpha: .5), s * .008),
-      );
+      canvas.drawOval(brim, _outline(s));
       // Sheen across the crown so a very dark mass still shows its shape.
       canvas.drawRRect(
         RRect.fromRectAndRadius(
@@ -250,10 +257,7 @@ class AccessoryArt {
           strokeOf(Colors.white.withValues(alpha: .85), s * .013),
         );
       }
-      canvas.drawPath(
-        cone,
-        strokeOf(shade(_partyPink, -.26).withValues(alpha: .45), s * .008),
-      );
+      canvas.drawPath(cone, _outline(s));
       canvas.drawCircle(
         apex,
         hw * .17,
@@ -263,6 +267,7 @@ class AccessoryArt {
           lift: .18,
         ),
       );
+      canvas.drawCircle(apex, hw * .17, _outline(s));
     });
   }
 
@@ -328,7 +333,7 @@ class AccessoryArt {
     p.close();
 
     canvas.drawPath(p, volumeOf(_gold, p.getBounds(), lift: .22, drop: -.16));
-    canvas.drawPath(p, strokeOf(shade(_gold, -.28), s * .008));
+    canvas.drawPath(p, _outline(s));
 
     // Band across the base, so the points sit on something.
     final Rect band = Rect.fromLTRB(
@@ -340,6 +345,10 @@ class AccessoryArt {
     canvas.drawRRect(
       RRect.fromRectAndRadius(band, Radius.circular(hw * .06)),
       volumeOf(shade(_gold, .04), band, lift: .18),
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(band, Radius.circular(hw * .06)),
+      _outline(s),
     );
     for (int i = -1; i <= 1; i++) {
       canvas.drawCircle(
@@ -425,6 +434,10 @@ class AccessoryArt {
         volumeOf(_hatBlack, cup, lift: .18),
       );
       canvas.drawRRect(
+        RRect.fromRectAndRadius(cup, Radius.circular(cup.width * .46)),
+        _outline(s),
+      );
+      canvas.drawRRect(
         RRect.fromRectAndRadius(cup.deflate(cup.width * .24),
             Radius.circular(cup.width * .30)),
         fillOf(_ribbonRed.withValues(alpha: .85)),
@@ -465,10 +478,7 @@ class AccessoryArt {
         wing,
         volumeOf(_ribbonRed, wing.getBounds(), lift: .18, drop: -.14),
       );
-      canvas.drawPath(
-        wing,
-        strokeOf(shade(_ribbonRed, -.28).withValues(alpha: .55), s * .008),
-      );
+      canvas.drawPath(wing, _outline(s));
     }
     final Rect knot = Rect.fromCenter(
       center: c,
@@ -478,6 +488,10 @@ class AccessoryArt {
     canvas.drawRRect(
       RRect.fromRectAndRadius(knot, Radius.circular(w * .16)),
       volumeOf(shade(_ribbonRed, -.10), knot, lift: .20),
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(knot, Radius.circular(w * .16)),
+      _outline(s),
     );
   }
 
@@ -517,6 +531,10 @@ class AccessoryArt {
       RRect.fromRectAndRadius(tail, Radius.circular(h * .22)),
       volumeOf(shade(_knitBlue, -.06), tail, lift: .12),
     );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(tail, Radius.circular(h * .22)),
+      _outline(s),
+    );
     for (int i = 0; i < 3; i++) {
       final double x = tail.left + tail.width * (.22 + i * .28);
       canvas.drawLine(
@@ -525,8 +543,7 @@ class AccessoryArt {
         strokeOf(shade(_knitBlue, -.14), s * .009),
       );
     }
-    canvas.drawRRect(wrap,
-        strokeOf(shade(_knitBlue, -.28).withValues(alpha: .45), s * .008));
+    canvas.drawRRect(wrap, _outline(s));
   }
 
   static void _capeCloth(Canvas canvas, double s, AccessoryAnchor a) {
@@ -573,10 +590,7 @@ class AccessoryArt {
       cloth,
       volumeOf(_capeCrimson, cloth.getBounds(), lift: .14, drop: -.20),
     );
-    canvas.drawPath(
-      cloth,
-      strokeOf(shade(_capeCrimson, -.26).withValues(alpha: .5), s * .009),
-    );
+    canvas.drawPath(cloth, _outline(s));
     // Two folds, to give the drape somewhere to catch light.
     for (final int sign in const <int>[-1, 1]) {
       canvas.drawPath(
@@ -604,6 +618,10 @@ class AccessoryArt {
     canvas.drawRRect(
       RRect.fromRectAndRadius(strap, Radius.circular(strap.height * .5)),
       volumeOf(_capeCrimson, strap, lift: .18),
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(strap, Radius.circular(strap.height * .5)),
+      _outline(s),
     );
     canvas.drawCircle(
       c,

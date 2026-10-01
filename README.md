@@ -32,15 +32,23 @@ changing anything.
 
 ### All artwork is drawn in code
 
-There are no image assets for the creatures. Every one of the 150 is described
-as a `CreatureSpec` — a set of enums for body shape, ears, crest, tail, wings,
-snout, pattern, eyes, limbs and one accent flourish — and rendered by a single
-`CustomPainter`.
+There are no image assets for the creatures. Every one of the 150 is hand-drawn
+as vector code: its own short routine in `lib/render/creature_art/<meadow>.dart`,
+built from a shared sticker vocabulary in `kit.dart` — soft outlined parts with
+one cel-shaded crescent and a gloss spot, big glossy eyes, blush and a small
+mouth. Mammals, birds and the standing four-legged animals share a few
+proportioned building blocks in `parts.dart` so a meadow reads as one cast.
 
-The payoff: crisp at any resolution, near-zero bundle cost, and one style
-change propagates to the whole cast at once. The cost: silhouettes are
-combinatorial, so a new part type must be checked against every creature that
-uses it.
+The payoff: crisp at any resolution, near-zero bundle cost, and every animal
+drawn to be recognisable at a glance — a giraffe has its neck, a hammerhead
+its hammer. The cost is that a style change to the kit touches every creature,
+so the sheets under [Review the artwork](#review-the-artwork) are the way to
+check one.
+
+Two habits keep the drawings tidy. A side-on animal's tail, body, neck and head
+are fused into one silhouette with `unite(...)` so no outline runs across the
+joins, and legs go in *behind* the body so they grow out of it rather than
+being stuck on.
 
 ### All sound is generated in code
 
@@ -92,12 +100,17 @@ lib/
 
   data/
     accessory.dart           The wardrobe: what can be bought and worn
-    creature_spec.dart       The parametric creature model (enums + spec)
+    creature_spec.dart       A creature's identity: meadow, tier, id, rarity
     worlds.dart              The five meadows and their unlock rules
     creatures/*.dart         30 creature specs per meadow
 
   render/
-    creature_painter.dart    Draws a CreatureSpec. The art engine.
+    creature_painter.dart    Paints a creature: fit, shadow, idle, accessories
+    creature_art/
+      kit.dart               The drawing vocabulary: parts, eyes, shapes
+      parts.dart             Shared anatomy: bodies, legs, ears, muzzles
+      creature_art.dart      The id -> artwork registry
+      <meadow>.dart          30 hand-drawn creatures per meadow
     creature_fit.dart        How each creature is scaled and placed in its tile
     creature_fits.g.dart     Measured fit per creature (generated)
     accessory_painter.dart   Draws what a creature is wearing
@@ -144,8 +157,15 @@ tool/
 ### Add or edit a creature
 
 Creature rosters live in `lib/data/creatures/<meadow>.dart`, ordered by tier.
-Each entry is a `CreatureSpec`. To change how one looks, adjust its enums — no
-painter changes needed for anything the existing part types already cover.
+Each entry is a `CreatureSpec` — just its meadow and tier.
+
+Its look lives in `lib/render/creature_art/<meadow>.dart`: a drawing routine
+registered under the creature's id in that file's map, with the half-width of
+its contact shadow. The routine draws into a unit square (ground at y = 0.90,
+centred on x = 0.5) through a `Pen`, and records where accessories hang —
+`p.head(...)`, `p.torso(...)`, `p.collar(...)`; `p.eyes(...)` records the
+sunglasses line by itself. `test/widget_test.dart` fails if a creature has no
+artwork.
 
 Then add its name to **all five** files in `assets/i18n/`, keyed by id
 (`day_13`, `night_07`, …). A missing translation falls back to English and then
@@ -154,7 +174,7 @@ to the raw id, so it will never render blank — but it will look wrong.
 Each meadow must have exactly 30 creatures with sequential tiers;
 `test/game_rules_test.dart` enforces this.
 
-Any change that alters a silhouette needs `flutter test
+Any change to a drawing needs `flutter test
 tool/measure_creature_fit.dart` afterwards (see
 [Review the artwork](#review-the-artwork)). A creature missing from the table
 still draws, sized by a rough estimate, but the fit test will flag it.
@@ -175,12 +195,12 @@ coming back. Adding one takes four edits:
    `lib/ui/accessory_labels.dart`. `test/game_rules_test.dart` fails if an item
    is drawable but not for sale.
 4. `flutter test test/accessory_sheet_preview.dart`, then look at the sheets —
-   the art is anchored to landmarks that move a lot between body plans.
+   the art is anchored to landmarks that move a lot between creatures.
 
 Accessory art is placed from an `AccessoryAnchor` — head top, face, collar
-line — that `CreaturePainter` derives per body plan, so an item never needs to
-know about body shapes. The collar in particular is *not* the top of the torso:
-on a separate-headed creature that line runs across the muzzle.
+line — that each creature's drawing records as it goes, so an item never needs
+to know about shapes. The collar in particular is *not* the top of the torso:
+on a creature with a big head over a small body it sits just under the chin.
 
 ### Review the artwork
 
@@ -189,8 +209,17 @@ flutter test test/creature_sheet_preview.dart
 ```
 
 Writes a contact sheet per meadow to `build/art_preview/`. Do this after any
-change to `creature_painter.dart` — a tweak to a shared part type affects every
-creature that uses it, and the sheets are the only practical way to see that.
+change to the kit or the shared parts — a tweak there affects every creature
+that uses it, and the sheets are the only practical way to see that.
+
+```bash
+flutter test test/art_dev_preview.dart --dart-define=WORLD=water
+```
+
+The sheet to work from while drawing: it measures each creature's fit on the
+spot instead of trusting the generated table, and writes a large sheet plus a
+board-tile-sized one. `--dart-define=IDS=day_08,water_04` limits it to a few
+creatures, `CELL` sets the size.
 
 ```bash
 flutter test tool/measure_creature_fit.dart
@@ -217,7 +246,7 @@ flutter test test/accessory_sheet_preview.dart
 ```
 
 Writes two more sheets to the same place: every accessory as a shop swatch, and
-a spread of body plans wearing each one.
+a spread of creatures wearing each one (`--dart-define=IDS=...` to pick them).
 
 ```bash
 flutter test test/merge_burst_preview.dart
@@ -300,13 +329,13 @@ flutter test
 | File | Covers |
 |---|---|
 | `test/game_rules_test.dart` | Roster integrity, balance curves, wardrobe catalogue, board rules, merge-flag lifetime, save round-trip, number formatting |
-| `test/widget_test.dart` | All 150 creatures paint without throwing; every accessory paints on every body plan |
+| `test/widget_test.dart` | All 150 creatures paint without throwing and each has its own artwork; every accessory paints on every creature |
 | `test/creature_fit_test.dart` | Every creature stays inside its tile at both ends of its idle bob, and none is shrunk below 0.76 to get there |
 | `test/audio_assets_test.dart` | WAV validity, loudness, clipping, click-free edges; music loop length, seam continuity, steady level |
 
-`test/creature_sheet_preview.dart`, `test/accessory_sheet_preview.dart`,
-`test/merge_burst_preview.dart`, `test/fit_preview.dart` and
-`test/ui_preview.dart` are review tools, not
+`test/creature_sheet_preview.dart`, `test/art_dev_preview.dart`,
+`test/accessory_sheet_preview.dart`, `test/merge_burst_preview.dart`,
+`test/fit_preview.dart` and `test/ui_preview.dart` are review tools, not
 assertions — they write PNGs for a human to look at, and `flutter test` skips
 them because they are not named `*_test.dart`.
 
