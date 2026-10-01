@@ -1017,63 +1017,65 @@ void _loris(Pen p) {
     rx: .175,
     ry: .165,
   );
-  // Hands raised, holding up a hibiscus.
+  for (final double k in sides) {
+    roundEar(p, pt(.5 + k * .19, .335), .05, fur, darker(fur, .12));
+  }
+  // The head settles down onto the shoulders.
+  const double hy = .455;
+  p.part(
+    fluff(.5, hy, .22, .17, 12, depth: .05),
+    fur,
+    shine: 1,
+    marks: () {
+      for (final double k in sides) {
+        p.flat(oval(.5 + k * .085, hy, .07, .075), dark);
+      }
+      p.flat(
+        blob(<Offset>[
+          pt(.5, hy - .15),
+          pt(.53, hy - .05),
+          pt(.525, hy + .07),
+          pt(.5, hy + .1),
+          pt(.475, hy + .07),
+          pt(.47, hy - .05),
+        ]),
+        pale,
+      );
+      p.flat(oval(.5, hy + .09, .06, .04), pale);
+    },
+  );
+  p.eyes(.5, hy, .085, .052, rim: pale, iris: const Color(0xFFC07A30));
+  p.cheeks(.5, hy + .08, .16, .028);
+  p.nose(pt(.5, hy + .07), .015);
+  p.smile(pt(.5, hy + .1), .016);
+  // A hibiscus held to the chest in both hands.
   for (final double k in sides) {
     p.tube(
       curve(<Offset>[
-        pt(.5 + k * .14, .66),
-        pt(.5 + k * .2, .60),
-        pt(.5 + k * .16, .55),
+        pt(.5 + k * .16, .63),
+        pt(.5 + k * .17, .70),
+        pt(.5 + k * .1, .735),
       ]),
-      .06,
+      .055,
       fur,
     );
   }
   for (int i = 0; i < 5; i++) {
     final double a = -math.pi / 2 + i * math.pi * 2 / 5;
     p.part(
-      circle(.5 + math.cos(a) * .04, .62 + math.sin(a) * .04, .035),
+      circle(.5 + math.cos(a) * .04, .715 + math.sin(a) * .04, .035),
       flower,
       depth: .4,
       line: p.lw * .6,
     );
   }
-  p.part(circle(.5, .62, .02), Kit.gold, depth: 0, line: p.lw * .5);
+  p.part(circle(.5, .715, .02), Kit.gold, depth: 0, line: p.lw * .5);
   for (final double k in sides) {
-    p.part(oval(.5 + k * .075, .64, .032, .03), fur, depth: .4);
+    p.part(oval(.5 + k * .075, .735, .032, .03), fur, depth: .4);
   }
-  for (final double k in sides) {
-    roundEar(p, pt(.5 + k * .19, .28), .05, fur, darker(fur, .12));
-  }
-  p.part(
-    fluff(.5, .40, .22, .17, 12, depth: .05),
-    fur,
-    shine: 1,
-    marks: () {
-      for (final double k in sides) {
-        p.flat(oval(.5 + k * .085, .40, .07, .075), dark);
-      }
-      p.flat(
-        blob(<Offset>[
-          pt(.5, .25),
-          pt(.53, .35),
-          pt(.525, .47),
-          pt(.5, .5),
-          pt(.475, .47),
-          pt(.47, .35),
-        ]),
-        pale,
-      );
-      p.flat(oval(.5, .49, .06, .04), pale);
-    },
-  );
-  p.eyes(.5, .40, .085, .052, rim: pale, iris: const Color(0xFFC07A30));
-  p.cheeks(.5, .48, .16, .028);
-  p.nose(pt(.5, .47), .015);
-  p.smile(pt(.5, .5), .016);
 
-  p.head(const Rect.fromLTRB(.28, .23, .72, .57), hatLift: .0);
-  p.collar(pt(.5, .57), .13);
+  p.head(const Rect.fromLTRB(.28, .285, .72, .625), hatLift: .0);
+  p.collar(pt(.5, .62), .13);
 }
 
 // ---------------------------------------------------------------- 14 aye-aye

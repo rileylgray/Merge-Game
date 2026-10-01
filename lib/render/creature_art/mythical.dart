@@ -580,7 +580,7 @@ void _imp(Pen p) {
   );
   for (final double k in sides) {
     p.part(
-      leaf(pt(.5 + k * .1, .29), pt(.5 + k * .17, .14), .055, bend: k * .02),
+      leaf(pt(.5 + k * .1, .315), pt(.5 + k * .17, .165), .055, bend: k * .02),
       horn,
       depth: .5,
     );
@@ -588,21 +588,21 @@ void _imp(Pen p) {
   for (final double k in sides) {
     p.part(
       roundPoly(<Offset>[
-        pt(.5 + k * .17, .40),
-        pt(.5 + k * .3, .34),
-        pt(.5 + k * .19, .48),
+        pt(.5 + k * .17, .425),
+        pt(.5 + k * .3, .365),
+        pt(.5 + k * .19, .505),
       ], .02),
       skin,
     );
   }
   sitBody(p, fur: skin, belly: belly, rx: .15, ry: .15, cy: .74);
-  p.part(oval(.5, .43, .2, .17), skin, shine: 1);
-  p.eyes(.5, .43, .08, .046, iris: const Color(0xFFFFC94A));
-  p.cheeks(.5, .49, .13, .03);
-  p.grin(pt(.5, .50), .045, .055, fangs: true);
+  p.part(oval(.5, .455, .2, .17), skin, shine: 1);
+  p.eyes(.5, .455, .08, .046, iris: const Color(0xFFFFC94A));
+  p.cheeks(.5, .515, .13, .03);
+  p.grin(pt(.5, .525), .045, .055, fangs: true);
 
-  p.head(const Rect.fromLTRB(.3, .26, .7, .60), hatLift: .05);
-  p.collar(pt(.5, .60), .12);
+  p.head(const Rect.fromLTRB(.3, .285, .7, .625), hatLift: .05);
+  p.collar(pt(.5, .62), .12);
 }
 
 // ----------------------------------------------------------------- 7 jackalope
