@@ -2,7 +2,7 @@ name: mergelings
 description: "Mergelings — merge adorable creatures and fill five magical meadows."
 publish_to: 'none'
 
-version: 2.0.1+15
+version: 2.0.2+16
 
 environment:
   sdk: ^3.10.0
