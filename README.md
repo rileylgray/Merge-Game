@@ -148,6 +148,9 @@ tool/
   measure_creature_fit.dart  Measures every creature's ink and writes the fit table
   generate_sfx.dart          Synthesises the sound effects
   generate_music.dart        Synthesises the seamless background loop
+  store_screenshots/         Frames the store captures into listing images
+
+store_screenshots/           App Store and Google Play listing images
 ```
 
 ---
@@ -291,6 +294,19 @@ Writes every Android mipmap density (including the adaptive-icon foreground)
 and every iOS `AppIcon.appiconset` slot. The icon is the Day Meadow fox cub
 (`day_13`); change `kIconCreature` in the tool to use a different one.
 
+### Regenerate the store screenshots
+
+```bash
+flutter test test/store_screenshot_capture.dart
+NODE_PATH=$(npm root -g) node tool/store_screenshots/compose.mjs
+```
+
+The first command captures the real screens at iPhone and iPad size into
+`build/store_raw/`. The second frames them with headlines and writes the App
+Store, App Store iPad and Google Play images into `store_screenshots/`. See
+[`store_screenshots/README.md`](store_screenshots/README.md) for the slides
+and how to change them.
+
 ### Add a UI string
 
 Add the key to `lib/l10n/app_en.arb`, then to the other four `app_*.arb` files,
@@ -335,7 +351,8 @@ flutter test
 
 `test/creature_sheet_preview.dart`, `test/art_dev_preview.dart`,
 `test/accessory_sheet_preview.dart`, `test/merge_burst_preview.dart`,
-`test/fit_preview.dart` and `test/ui_preview.dart` are review tools, not
+`test/fit_preview.dart`, `test/ui_preview.dart` and
+`test/store_screenshot_capture.dart` are review tools, not
 assertions — they write PNGs for a human to look at, and `flutter test` skips
 them because they are not named `*_test.dart`.
 
