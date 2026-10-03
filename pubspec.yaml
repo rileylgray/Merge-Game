@@ -2,7 +2,7 @@ name: mergelings
 description: "Mergelings — merge adorable creatures and fill five magical meadows."
 publish_to: 'none'
 
-version: 2.0.2+16
+version: 2.0.3+17
 
 environment:
   sdk: ^3.10.0
@@ -28,6 +28,9 @@ dependencies:
   # Monetisation
   google_mobile_ads: ^9.0.0
   app_tracking_transparency: ^2.0.7
+
+  # Store rating prompt
+  in_app_review: ^2.0.12
 
   # Utilities
   package_info_plus: ^10.2.1

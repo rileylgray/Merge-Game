@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../l10n/app_localizations.dart';
 import '../../services/ads_service.dart';
+import '../../services/review_service.dart';
 import '../../state/game_controller.dart';
 import '../dialogs.dart';
 import '../widgets/banner_ad_slot.dart';
@@ -185,7 +186,19 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
       game.clearDiscovery();
       _showingDialog = false;
       if (mounted) unawaitedDrain();
+      _maybeAskForReview(game, ads);
     }
+  }
+
+  /// A fresh discovery is the happiest moment the game has, so it is where
+  /// the rating sheet is offered — once the dialog has finished closing.
+  void _maybeAskForReview(GameController game, AdsService ads) {
+    Future<void>.delayed(const Duration(milliseconds: 600), () {
+      // A sheet requested behind an ad, or behind another dialog that has
+      // just opened, is dismissed unseen; the next discovery tries again.
+      if (!mounted || _showingDialog || ads.showingFullScreen) return;
+      ReviewService.instance.onDiscovery(discovered: game.discoveredCount());
+    });
   }
 
   void unawaitedDrain() => WidgetsBinding.instance.addPostFrameCallback(

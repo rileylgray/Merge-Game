@@ -7,6 +7,7 @@ import '../../core/app_config.dart';
 import '../../core/app_theme.dart';
 import '../../l10n/app_localizations.dart';
 import '../../services/ads_service.dart';
+import '../../services/review_service.dart';
 import '../../state/game_controller.dart';
 
 const Map<String, String> kLanguageNames = <String, String>{
@@ -118,7 +119,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   leading: const Icon(Icons.star_rounded),
                   title: Text(l.settingsRate),
                   trailing: const Icon(Icons.open_in_new_rounded, size: 18),
-                  onTap: () => _open(AppConfig.storeUrl),
+                  onTap: ReviewService.instance.openStore,
                 ),
               ],
             ),

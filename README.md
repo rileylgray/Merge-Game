@@ -138,6 +138,7 @@ lib/
     ads_service.dart         Consent (UMP), ATT, banner/interstitial/rewarded
     audio_service.dart       Pooled SFX playback
     creature_names.dart      Localized creature names from JSON assets
+    review_service.dart      Store rating prompt after discoveries, Rate link
     storage_service.dart     Debounced persistence
 
   state/
@@ -362,6 +363,7 @@ flutter test
 | `test/widget_test.dart` | All 150 creatures paint without throwing and each has its own artwork; every accessory paints on every creature |
 | `test/creature_fit_test.dart` | Every creature stays inside its tile at both ends of its idle bob, and none is shrunk below 0.76 to get there |
 | `test/smooth_stroke_canvas_test.dart` | Stroked curves, ovals and rounded rects are drawn enlarged so Impeller keeps them smooth, and every accessory on a creature is drawn that way |
+| `test/review_service_test.dart` | Rating prompt waits for 8 discoveries, asks at most once per launch, spaces later asks out and stops after three |
 | `test/audio_assets_test.dart` | WAV validity, loudness, clipping, click-free edges; music loop length, seam continuity, steady level |
 
 `test/creature_sheet_preview.dart`, `test/art_dev_preview.dart`,
@@ -415,8 +417,9 @@ replaced before a public release:
 - [ ] **Privacy policy and terms pages** must actually exist at the URLs in
       `lib/core/app_config.dart`. Both stores reject without a reachable
       privacy policy, and AdMob requires one.
-- [ ] **App Store id** via `--dart-define=APP_STORE_ID=` so the in-app rate
-      link resolves.
+- [ ] **App Store id** via `--dart-define=APP_STORE_ID=` so Settings → Rate
+      Mergelings opens the App Store listing. Without it, iOS falls back to
+      the native rating sheet, which Apple may decline to show.
 - [ ] **Android signing** — `android/app/build.gradle.kts` still uses the debug
       signing config for release builds. Wire up a real keystore.
 - [ ] **Data safety / privacy nutrition labels** — declare advertising id
